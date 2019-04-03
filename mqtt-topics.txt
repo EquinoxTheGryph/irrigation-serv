@@ -1,0 +1,16 @@
+Read:
+    /state
+    /timeStamp
+    /soilHumidity[/#] ('/#' = index of sensor, Otherwise returns an avarage)
+    /flowRate
+    /airTemperature
+    /enclosureTemperature
+    /airHumidity
+    /movementDetected
+    /currentValvePos
+    
+Write: (Most of these can also be read by adding '/get' at the end)
+    /mode
+    /targetValvePos
+    /flowLimit
+    /reportRate

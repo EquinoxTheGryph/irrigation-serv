@@ -1,0 +1,26 @@
+{
+    "name": "Irrigation Manager",
+    "version": "1",
+    "slug": "irrigation_serv",
+    "description": "(BETA) Management client for my arduino sketch, runs on MQTT, connects to arduino via Serial",
+    "arch": ["armhf", "armv7", "aarch64", "amd64", "i386"],
+    "startup": "before",
+    "boot": "auto",
+    "auto_uart" : true,
+    "options": {
+        "mqtt_base_topic": "irrigation",
+        "mqtt_server": "mqtt://homeassistant",
+        "mqtt_port": 1883,
+        "serial_port": "/dev/ttyACM0",
+        "serial_baud": 9600,
+        "log_level": 3
+    },
+    "schema": {
+        "mqtt_base_topic": "str",
+        "mqtt_server": "str",
+        "mqtt_port": "int",
+        "serial_port": "str",
+        "serial_baud": "int",
+        "log_level": "int"
+    }
+}
