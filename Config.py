@@ -1,9 +1,9 @@
-### IMPORTS
-import SpecialMessages, json
+import SpecialMessages
+import json
 
-### CLASS
+
 class Config:
-    
+
     _def_config = {
         "mqtt_base_topic":  "irrigation",
         "mqtt_server":      "192.168.1.30",
@@ -39,12 +39,12 @@ class Config:
             self._msg.e(e)
             exit(3)
     
-    ## TODO: Descriptions
+    # TODO: Add Descriptions
     def get(self, key, default = None):
         # Check if there has been a default value set
         if default is None:
             val = None
-            try: # Try getting the values in loaded _config, otherwise try getting the default val in _def_config
+            try:  # Try getting the values in loaded _config, otherwise try getting the default val in _def_config
                 val = self._config.get(key, self._def_config[key])
             except KeyError as e:
                 self._msg.e("IN Config.py:  %s" % e)
@@ -53,6 +53,6 @@ class Config:
         else:   # Default val overridden by user
             return self._config.get(key, default)
     
-    def _override(self, key, json):
-        self._config[key] = json.get(key, self._def_config[key])
+    def _override(self, key, json_obj):
+        self._config[key] = json_obj.get(key, self._def_config[key])
     
