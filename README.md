@@ -44,3 +44,21 @@ TODO!
 
 ## Configuration
 TODO!
+
+## MQTT Topics
+Every topic string begins with the currently set `mqtt\_base\_topic` name (E.g. `irrigation/state`)
+ - Read:
+    -     `/state`
+    -     `/timeStamp`
+    -     `/soilHumidity[/#]` (`'/#'` = index of sensor, Otherwise returns an avarage)
+    -     `/flowRate`
+    -     `/airTemperature`
+    -     `/enclosureTemperature`
+    -     `/airHumidity`
+    -     `/movementDetected`
+    -     `/currentValvePos`
+- Write: (Most of these can also be read by adding '/get' at the end)
+    -     `/mode`
+    -     `/targetValvePos`
+    -     `/flowLimit`
+    -     `/reportRate`
