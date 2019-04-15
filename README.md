@@ -34,10 +34,15 @@ This program depends on these libraries:
    Note: Make sure the script is running using version 3.6 or above for the best experience.
  
 ### Docker
-TODO!
+ - Build the image:  
+   `docker build https://github.com/STcraft/irrigation-serv.git --tag 'irrigation-serv:master'`
+
+ - Run the image:  
+   `docker run --device=/dev/ttyUSB0 irrigation-serv`
 
 ### Hass.io (HomeAssistant)
-TODO!
+ - Follow the guide documented here:  
+   https://github.com/STcraft/hassio-irrigation-serv
 
 ## Installation (Client)
 TODO!
@@ -46,19 +51,19 @@ TODO!
 TODO!
 
 ## MQTT Topics
-Every topic string begins with the currently set `mqtt\_base\_topic` name (E.g. `irrigation/state`)
+Every topic string begins with the currently set `mqtt_base_topic` name (E.g. `irrigation/state`)
  - Read:
-    -     `/state`
-    -     `/timeStamp`
-    -     `/soilHumidity[/#]` (`'/#'` = index of sensor, Otherwise returns an avarage)
-    -     `/flowRate`
-    -     `/airTemperature`
-    -     `/enclosureTemperature`
-    -     `/airHumidity`
-    -     `/movementDetected`
-    -     `/currentValvePos`
+    - `/state`
+    - `/timeStamp`
+    - `/soilHumidity[/#]` (`'/#'` = index of sensor, Otherwise returns an avarage)
+    - `/flowRate`
+    - `/airTemperature`
+    - `/enclosureTemperature`
+    - `/airHumidity`
+    - `/movementDetected`
+    - `/currentValvePos`
 - Write: (Most of these can also be read by adding '/get' at the end)
-    -     `/mode`
-    -     `/targetValvePos`
-    -     `/flowLimit`
-    -     `/reportRate`
+    - `/mode`
+    - `/targetValvePos`
+    - `/flowLimit`
+    - `/reportRate`
