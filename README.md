@@ -37,8 +37,8 @@ This program depends on these libraries:
  - Build the image:  
    `docker build https://github.com/STcraft/irrigation-serv.git --tag 'irrigation-serv:master'`
 
- - Run the image:  
-   `docker run --device=/dev/ttyUSB0 irrigation-serv`
+ - Run the image (Change `/dev/ttyXXX` to your serial device):  
+   `docker run --device=/dev/ttyXXX irrigation-serv`
 
 ### Hass.io (HomeAssistant)
  - Follow the guide documented here:  
