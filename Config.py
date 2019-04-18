@@ -16,12 +16,12 @@ class Config:
 
     # Optional keys - Return default value if not included (Syntax = "key": [data_type, default_val})
     _optional_keys = {
-        "mqtt_user": [str, None],
-        "mqtt_pass": [str, None]
+        "mqtt_user": (str, None),
+        "mqtt_pass": (str, None)
     }
-    
+
     _config = {}  # loaded configuration
-    
+
     _msg = SpecialMessages.SpecialMessages(5)
 
     # Class initializer
@@ -46,19 +46,19 @@ class Config:
             return val
         else:   # Default val overridden by user
             return self._config.get(key, default)
-    
+
     # Try to load a config file by path, returns 0 on success
     def _load(self, path):
         try:
             with open(path) as json_data:
                 d = json.load(json_data)
 
-                # Check config for any required keys and load values
-                if not self._check_config(d):
+                # Check config for any required keys and load values, Will throw an error if a key is missing
+                if not self._check_required_keys(d):
                     return 4
 
-                # Close the file properly
-                json_data.close()
+                # Now check for any optional keys
+                self._check_optional_keys(d)
 
                 self._msg.i("Config file '%s' loaded." % path)
                 return 0
@@ -73,19 +73,19 @@ class Config:
             return 2
 
     # Check if the required keys are present, Returns boolean
-    def _check_config(self, json_obj):
+    def _check_required_keys(self, json_obj):
         # Iterate through all the required keys
-        for i in self._required_keys:
+        for key, value in self._required_keys.items():
             try:
                 # Check if the key is in the right format, otherwise return false
-                if type(json_obj[i]) is self._required_keys[i]:
+                if type(json_obj[key]) is value:
                     # Attempt to set get the key value, if the key doesn't exist, return false
-                    self._config[i] = json_obj[i]
+                    self._config[key] = json_obj[key]
                 else:
-                    self._msg.e("Required key '%s' is not an '%s' type!" % (i, self._required_keys[i]))
+                    self._msg.e("Required key '%s' is not an '%s' type!" % (key, value))
                     break
             except KeyError:
-                self._msg.e("Required key '%s' not found in config file!" % i)
+                self._msg.e("Required key '%s' not found in config file!" % key)
                 break
 
         # No errors found, Return true
@@ -94,3 +94,21 @@ class Config:
 
         # An error has happened, return false
         return False
+
+    # Check if any optional keys are present, override key if an value has been set
+    def _check_optional_keys(self, json_obj):
+        # Iterate through all the optional keys
+        for key, value in self._optional_keys.items():
+            type_val, default_val = value
+            self._config[key] = default_val
+            print(key, value)
+            try:
+                # Check if the key is in the right format, otherwise return false
+                if type(json_obj[key]) is type_val:
+                    # Attempt to set get the key value, if the key doesn't exist, return false
+                    self._config[key] = json_obj[key]
+                else:
+                    self._msg.d("Optional key '%s' is not an '%s' type! Setting to the default value of '%s'" % (key, type_val, default_val))
+
+            except KeyError:
+                self._msg.d("Optional key '%s' not found in config file! Setting to the default value of '%s'" % (key, default_val))

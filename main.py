@@ -54,8 +54,7 @@ async def main():
 
     # Attempt connection to the MQTT broker
     client.reinitialise(config.get("mqtt_base_topic"))
-    msg.n("Connecting MQTT client '%s' to %s:%s" % (
-    config.get("mqtt_base_topic"), config.get("mqtt_server"), config.get("mqtt_port")))
+    msg.n("Connecting MQTT client '%s' to %s:%s" % (config.get("mqtt_base_topic"), config.get("mqtt_server"), config.get("mqtt_port")))
     try:
         client.on_message = on_message
         client.connect(config.get("mqtt_server"), config.get("mqtt_port"))
@@ -67,7 +66,7 @@ async def main():
         exit(2)
 
     # Send a status notification
-    msg.n("Publishing status message.")
+    msg.n("Publishing status online message.")
     client.publish(config.get("mqtt_base_topic") + "/status", 1)
 
     # Subscribe to enable recieving specific keys
@@ -82,10 +81,9 @@ async def main():
 # Program Stop
 def stop():
     msg.s("Shutting down!")
-    should_exit_loop = True
     client.loop_stop()
 
-    msg.n("Publishing status message.")
+    msg.n("Publishing status offline message.")
     client.publish(config.get("mqtt_base_topic") + "/status", 0)
 
     msg.n("Disconnecting.")
@@ -95,7 +93,6 @@ def stop():
     serial_port.flush()
     serial_port.reset_input_buffer()
     serial_port.close()
-
     msg.s("Program ended.")
 
 
@@ -154,7 +151,8 @@ def publish_data(json_obj):
     # soilHumidity Will need to be split up into sub values
     try:
         for i in range(0, len(json_obj["soilHumidity"])):
-            client.publish(config.get("mqtt_base_topic") + "/soilHumidity/%s" % i, json_obj["soilHumidity"][i])
+            client.publish(config.get("mqtt_base_topic") +
+                           "/soilHumidity/%s" % i, json_obj["soilHumidity"][i])
     except KeyError as e:
         msg.d("attempt_publish_data():  %s" % e)
         pass
@@ -164,11 +162,13 @@ def publish_data(json_obj):
 def attempt_publish_data(json_obj, key, topic_suffix="", jkey=None):
     try:
         if jkey is None:
-            client.publish("%s/%s%s" % (config.get("mqtt_base_topic"), key, topic_suffix), json_obj[key])
+            client.publish(
+                "%s/%s%s" % (config.get("mqtt_base_topic"), key, topic_suffix), json_obj[key])
         else:
-            client.publish("%s/%s%s" % (config.get("mqtt_base_topic"), key, topic_suffix), json_obj[jkey])
+            client.publish(
+                "%s/%s%s" % (config.get("mqtt_base_topic"), key, topic_suffix), json_obj[jkey])
     except KeyError as e:
-        msg.d("attempt_publish_data():  %s" % e)
+        msg.e("attempt_publish_data():  %s" % e)
         pass
 
 
@@ -178,10 +178,12 @@ def on_message(client, userdata, message):
         # Get and decode payload message
         payload = str(message.payload.decode("utf-8"))
 
-        msg.d("MQTT -> This    Topic: %s    Payload: %s" % (message.topic, payload))
+        msg.d("MQTT -> This    Topic: %s    Payload: %s" %
+              (message.topic, payload))
 
         # Get which message should be relayed (Note: Values below 0 will supposedly get ignored)
-        output_msg = {"mode": -1, "flowLimit": -1, "targetValvePos": -1, "reportInterval": -1}
+        output_msg = {"mode": -1, "flowLimit": -1,
+                      "targetValvePos": -1, "reportInterval": -1}
 
         if message.topic == config.get("mqtt_base_topic") + "/mode":
             output_msg["mode"] = str2bool(payload)
