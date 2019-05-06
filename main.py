@@ -21,7 +21,7 @@ should_exit_loop = False
 
 # CLASS DEFINITIONS
 config = Config.Config('/data/options.json', 'server-config.json')
-client = mqtt.Client()
+client = mqtt.Client(config.get("mqtt_base_topic"))
 serial_port = serial.Serial()
 killer = GracefulKiller.GracefulKiller()
 msg = SpecialMessages.SpecialMessages(config.get("log_level"))
@@ -53,10 +53,13 @@ async def main():
     serial_port.reset_input_buffer()
 
     # Attempt connection to the MQTT broker
-    client.reinitialise(config.get("mqtt_base_topic"))
     msg.n("Connecting MQTT client '%s' to %s:%s" % (config.get("mqtt_base_topic"), config.get("mqtt_server"), config.get("mqtt_port")))
     try:
         client.on_message = on_message
+        if config.get("mqtt_user") or config.get("mqtt_pass"):
+            client.username_pw_set(config.get("mqtt_user"), password=config.get("mqtt_pass"))
+            msg.i("User name set to %s" % config.get("mqtt_user"))
+            msg.i("If no data seems to be sent to the server, make sure you are using the correct credentials first!")
         client.connect(config.get("mqtt_server"), config.get("mqtt_port"))
     except Exception as e:
         msg.e(e)
