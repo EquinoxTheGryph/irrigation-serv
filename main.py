@@ -56,7 +56,7 @@ async def main():
     msg.n("Connecting MQTT client '%s' to %s:%s" % (config.get("mqtt_base_topic"), config.get("mqtt_server"), config.get("mqtt_port")))
     try:
         client.on_message = on_message
-        if config.get("mqtt_user") or config.get("mqtt_pass"):
+        if config.get("mqtt_user") is not None:
             client.username_pw_set(config.get("mqtt_user"), password=config.get("mqtt_pass"))
             msg.i("User name set to %s" % config.get("mqtt_user"))
             msg.i("If no data seems to be sent to the server, make sure you are using the correct credentials first!")
