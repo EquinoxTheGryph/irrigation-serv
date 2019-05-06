@@ -2,4 +2,5 @@ __pycache__/
 .idea/
 .git/
 .swp
+.directory
 server-config.json
