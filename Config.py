@@ -1,23 +1,24 @@
 import SpecialMessages
 import json
+import argparse
 
 
 class Config:
 
-    # Required keys - Exit if not included in config file (Syntax = "key": data_type)
+    # Required keys - Exit if not included in config file and arguments {Syntax = "key": (data_type, description, shorthand)}
     _required_keys = {
-        "mqtt_base_topic": str,
-        "mqtt_server": str,
-        "mqtt_port": int,
-        "serial_port": str,
-        "serial_baud": int,
-        "log_level": int
+        "mqtt_base_topic": (str, "Mqtt base topic to respond to or send messages to", "t"),
+        "mqtt_server": (str, "Mqtt server to connect to", "s"),
+        "serial_port": (str, "Serial port to connect to", "p"),
     }
 
-    # Optional keys - Return default value if not included (Syntax = "key": [data_type, default_val})
+    # Optional keys - Return default value if not included in config file and arguments {Syntax = "key": (data_type, default_val, description, shorthand)}
     _optional_keys = {
-        "mqtt_user": (str, None),
-        "mqtt_pass": (str, None)
+        "mqtt_port": (int, 1883, "Mqtt server port", "P"),
+        "mqtt_user": (str, None, "User for mqtt authentication", "u"),
+        "mqtt_pass": (str, None, "Password for mqtt authentication (Requires mqtt_user)", "k"),
+        "serial_baud": (int, 9600, "Serial baudrate", "b"),
+        "log_level": (int, 3, "Verbosity [0 = Nothing, 1 = Error, 2 = Normal, 3 = Warning, 4 = Info, 5 = Debug]", "v")
     }
 
     _config = {}  # loaded configuration
@@ -26,13 +27,58 @@ class Config:
 
     # Class initializer
     # Can supply multiple fallback paths
-    def __init__(self, *path):
-        for file in path:
-            if self._load(file) == 0:
-                break
-        else:
+    def __init__(self, priority_path):
+
+        # Load Arguments, Parse Config file location first
+        argument_parser = argparse.ArgumentParser(description = "Irrigation manager")
+        argument_parser.add_argument("-c", "--config", help = "Specify the configuration file location, Using this will make the required variables optional")
+
+        config_file = argument_parser.parse_known_args()[0].config
+
+        # Iterate through all the required keys (Required if --config is set)
+        for key, value in self._required_keys.items():
+            data_type, description, shorthand = value
+            argument_parser.add_argument("-%s" % shorthand, "--%s" % key, help = description, type = data_type, required = (config_file is None))
+
+        # Iterate through all the optional keys
+        for key, value in self._optional_keys.items():
+            data_type, default_val, description, shorthand = value
+            argument_parser.add_argument("-%s" % shorthand, "--%s" % key, help = description, type = data_type, default = default_val)
+
+        # Load config file, priority_path first
+        return_code = self._load(priority_path)
+        if return_code == 0:
+            pass
+
+        elif return_code == 1:
+            # When overridden config not found, try parsing --config
+            if config_file is not None:
+                return_code = self._load(config_file)
+
+                if return_code == 0:
+                    pass
+
+                else:
+                    self._msg.e("Quitting!")
+                    exit(10)
+
+        elif return_code == 2:
             self._msg.e("Quitting!")
             exit(10)
+
+        # Override local config
+        arguments = vars(argument_parser.parse_args())
+
+        def iteration(_key):
+            if arguments[_key] is not None:
+                self._config[_key] = arguments[_key]
+
+        for key in self._required_keys.keys():
+            iteration(key)
+
+        for key in self._optional_keys.keys():
+            iteration(key)
+
 
     # Get a configuration setting
     def get(self, key, default=None):
@@ -76,6 +122,7 @@ class Config:
     def _check_required_keys(self, json_obj):
         # Iterate through all the required keys
         for key, value in self._required_keys.items():
+            value, *_ = value
             try:
                 # Check if the key is in the right format, otherwise return false
                 if type(json_obj[key]) is value:
@@ -99,9 +146,8 @@ class Config:
     def _check_optional_keys(self, json_obj):
         # Iterate through all the optional keys
         for key, value in self._optional_keys.items():
-            type_val, default_val = value
+            type_val, default_val, *_ = value
             self._config[key] = default_val
-            print(key, value)
             try:
                 # Check if the key is in the right format, otherwise return false
                 if type(json_obj[key]) is type_val:

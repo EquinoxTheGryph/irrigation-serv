@@ -20,7 +20,7 @@ POLLING_RATE = 3  # How many times per second it should check for serial events
 should_exit_loop = False
 
 # CLASS DEFINITIONS
-config = Config.Config('/data/options.json', 'server-config.json')
+config = Config.Config('/data/options.json')
 client = mqtt.Client(config.get("mqtt_base_topic"))
 serial_port = serial.Serial()
 killer = GracefulKiller.GracefulKiller()
