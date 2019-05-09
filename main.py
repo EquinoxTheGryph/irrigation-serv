@@ -16,6 +16,14 @@ import Config
 # CONSTANTS
 POLLING_RATE = 3  # How many times per second it should check for serial events
 
+# Topics to subscribe to and relay to the serial output {Syntax = "topic_name" : data_type}
+_subscribed_topics = {
+    "mode": bool,
+    "flowLimit": int,
+    "targetValvePos": int,
+    "reportInterval": int
+}
+
 # GLOBAL VARIABLES
 should_exit_loop = False
 
@@ -128,10 +136,8 @@ async def monitor_serial_input():
 
 # Subscribe to topics
 def subscribe_topics():
-    client.subscribe(config.get("mqtt_base_topic") + "/mode")
-    client.subscribe(config.get("mqtt_base_topic") + "/flowLimit")
-    client.subscribe(config.get("mqtt_base_topic") + "/targetValvePos")
-    client.subscribe(config.get("mqtt_base_topic") + "/reportInterval")
+    for topic in _subscribed_topics.keys():
+        client.subscribe("%s/%s" % (config.get("mqtt_base_topic"), topic))
 
 
 # Publish sensor data to MQTT
@@ -154,8 +160,7 @@ def publish_data(json_obj):
     # soilHumidity Will need to be split up into sub values
     try:
         for i in range(0, len(json_obj["soilHumidity"])):
-            client.publish(config.get("mqtt_base_topic") +
-                           "/soilHumidity/%s" % i, json_obj["soilHumidity"][i])
+            client.publish(config.get("mqtt_base_topic") + "/soilHumidity/%s" % i, json_obj["soilHumidity"][i])
     except KeyError as e:
         msg.d("attempt_publish_data():  %s" % e)
         pass
@@ -165,11 +170,9 @@ def publish_data(json_obj):
 def attempt_publish_data(json_obj, key, topic_suffix="", jkey=None):
     try:
         if jkey is None:
-            client.publish(
-                "%s/%s%s" % (config.get("mqtt_base_topic"), key, topic_suffix), json_obj[key])
+            client.publish("%s/%s%s" % (config.get("mqtt_base_topic"), key, topic_suffix), json_obj[key])
         else:
-            client.publish(
-                "%s/%s%s" % (config.get("mqtt_base_topic"), key, topic_suffix), json_obj[jkey])
+            client.publish("%s/%s%s" % (config.get("mqtt_base_topic"), key, topic_suffix), json_obj[jkey])
     except KeyError as e:
         msg.e("attempt_publish_data():  %s" % e)
         pass
@@ -181,23 +184,25 @@ def on_message(client, userdata, message):
         # Get and decode payload message
         payload = str(message.payload.decode("utf-8"))
 
-        msg.d("MQTT -> This    Topic: %s    Payload: %s" %
-              (message.topic, payload))
+        msg.d("MQTT -> This    Topic: %s    Payload: %s" % (message.topic, payload))
 
         # Get which message should be relayed (Note: Values below 0 will supposedly get ignored)
-        output_msg = {"mode": -1, "flowLimit": -1,
-                      "targetValvePos": -1, "reportInterval": -1}
+        output_msg = {}
 
-        if message.topic == config.get("mqtt_base_topic") + "/mode":
-            output_msg["mode"] = str2bool(payload)
-        elif message.topic == config.get("mqtt_base_topic") + "/flowLimit":
-            output_msg["flowLimit"] = int(payload)
-        elif message.topic == config.get("mqtt_base_topic") + "/targetValvePos":
-            output_msg["targetValvePos"] = int(payload)
-        elif message.topic == config.get("mqtt_base_topic") + "/reportInterval":
-            output_msg["reportInterval"] = int(payload)
-        else:
-            msg.e("Unhandled Topic: %s" % message.topic)
+        for topic, data_type in _subscribed_topics.items():
+            output_msg[topic] = -1
+            if message.topic == "%s/%s" % (config.get("mqtt_base_topic"), topic):
+                if data_type is bool:
+                    output_msg[topic] = str2bool(payload)
+                elif data_type is int:
+                    output_msg[topic] = int(payload)
+                elif data_type is str:
+                    output_msg[topic] = payload
+                elif data_type is float:
+                    output_msg[topic] = float(payload)
+                else:
+                    msg.e("Topic '%s' with payload '%s' could not be parsed due to expected type mismatch (expected %s)" % (topic, payload, data_type))
+                    output_msg[topic] = -1
 
         # Relay any matched message to Serial and make sure it's written properly
         output_json = json.dumps(output_msg)
@@ -206,7 +211,7 @@ def on_message(client, userdata, message):
         serial_port.flush()
 
     except Exception as e:
-        print("on_message():  %s" % e)
+        msg.e("on_message():  %s" % e)
 
 
 # Convert string to boolean - Supports a variety of values for ease of use
