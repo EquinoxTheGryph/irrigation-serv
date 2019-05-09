@@ -24,6 +24,38 @@ _subscribed_topics = {
     "reportInterval": int
 }
 
+# Topics to parse from the serial stream to publish to mqtt {Syntax = "topic_name" : {extra_data} OR None}
+# Extra data keys:
+#   - "from_key" : str (key to look for when recieving data)
+#   - "getter" : bool (suffix topic with '/get')
+#   - "as_array" : bool (parse key data as array, suffix topic with '/#', where # is the index)
+_published_topics = {
+    "timeStamp" : None,
+    "airHumidity" : None,
+    "flowRate" : None,
+    "airTemperature" : None,
+    "enclosureTemperature" : None,
+    "movementDetected" : None,
+    "currentValvePos" : None,
+    "soilHumidity" : {
+        "from_key": "avgSoilHumidity"
+    },
+
+    "targetValvePos" : {
+        "getter" : True
+    },
+    "mode" : {
+        "getter" : True
+    },
+    "flowLimit" : {
+        "getter" : True
+    },
+
+    "soilHumidity" : {
+        "as_array" : True
+    }
+}
+
 # GLOBAL VARIABLES
 should_exit_loop = False
 
@@ -142,37 +174,36 @@ def subscribe_topics():
 
 # Publish sensor data to MQTT
 def publish_data(json_obj):
-    # Get json data and publish it - If a certain key wasn't received,
-    # it will not publish any data with that key (avoids sudden null payloads)
-    attempt_publish_data(json_obj, "timeStamp")
-    attempt_publish_data(json_obj, "airHumidity")
-    attempt_publish_data(json_obj, "flowRate")
-    attempt_publish_data(json_obj, "airTemperature")
-    attempt_publish_data(json_obj, "enclosureTemperature")
-    attempt_publish_data(json_obj, "movementDetected")
-    attempt_publish_data(json_obj, "currentValvePos")
-    attempt_publish_data(json_obj, "soilHumidity", jkey="avgSoilHumidity")
-
-    attempt_publish_data(json_obj, "targetValvePos", "/get")
-    attempt_publish_data(json_obj, "mode", "/get")
-    attempt_publish_data(json_obj, "flowLimit", "/get")
-
-    # soilHumidity Will need to be split up into sub values
-    try:
-        for i in range(0, len(json_obj["soilHumidity"])):
-            client.publish(config.get("mqtt_base_topic") + "/soilHumidity/%s" % i, json_obj["soilHumidity"][i])
-    except KeyError as e:
-        msg.d("attempt_publish_data():  %s" % e)
-        pass
+    # Iterate through _published_topics, relay json_obj keys to mqtt
+    for topic, extra_data in _published_topics.items():
+        if extra_data is None:
+            attempt_publish_data(json_obj, topic)
+        else:
+            getter = extra_data.get("getter", False)
+            from_key = extra_data.get("from_key", None)
+            as_array = extra_data.get("as_array", False)
+            attempt_publish_data(json_obj, topic, getter, from_key, as_array)
 
 
 # If the provided key exists, get the payload and publish it, otherwise ignore it and do not publish
-def attempt_publish_data(json_obj, key, topic_suffix="", jkey=None):
+def attempt_publish_data(json_obj, key, getter = False, from_key = None, as_array = False):
     try:
-        if jkey is None:
-            client.publish("%s/%s%s" % (config.get("mqtt_base_topic"), key, topic_suffix), json_obj[key])
+        # If getter is set to True, append '/get' to the topic
+        topic_suffix = "/get" if getter else ""
+
+        # Check if the key should be parsed as an array
+        if not as_array:
+            if from_key is None:
+                client.publish("%s/%s%s" % (config.get("mqtt_base_topic"), key, topic_suffix), json_obj[key])
+            else:
+                client.publish("%s/%s%s" % (config.get("mqtt_base_topic"), key, topic_suffix), json_obj[from_key])
         else:
-            client.publish("%s/%s%s" % (config.get("mqtt_base_topic"), key, topic_suffix), json_obj[jkey])
+            # Iterate through the supplied array key
+            for index in range(0, len(json_obj[key])):
+                if from_key is None:
+                    client.publish("%s/%s/%s%s" % (config.get("mqtt_base_topic"), key, index, topic_suffix), json_obj[key][index])
+                else:
+                    client.publish("%s/%s/%s%s" % (config.get("mqtt_base_topic"), key, index, topic_suffix), json_obj[from_key][index])
     except KeyError as e:
         msg.e("attempt_publish_data():  %s" % e)
         pass
