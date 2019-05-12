@@ -24,22 +24,24 @@ The host depends on these libraries:
  
  - To make instalation easier, first make sure the `python-pip` package is installed.
 
- - Install the required libraries:  
+ - Install the required libraries:
    `pip3 install -r requirements.txt`
-   
- - To run the code:  
-   `python3 main.py`  
+
+ - To run the code: 
+   `python3 main.py <PARAMETERS>` 
    Note: Make sure the script is running using Python version 3.6 or above for the best experience.
+   For parameters, see the Configuration guide.
  
 #### Docker
- - Build the image:  
+ - Build the image:
    `docker build https://github.com/STcraft/irrigation-serv.git --tag 'irrigation-serv:master'`
 
- - Run the image (Replace `/dev/ttyXXX` with your serial device):  
-   `docker run --device=/dev/ttyXXX irrigation-serv`
+ - Run the image (Replace `/dev/ttyXXX` with your serial device.): 
+   `docker run --device=/dev/ttyXXX irrigation-serv <PARAMETERS>`
+   For parameters, see the Configuration guide.
 
 #### Hass.io (HomeAssistant)
- - Follow the guide documented here:  
+ - Follow the guide documented here:
    https://github.com/STcraft/hassio-irrigation-serv
 
 
@@ -66,18 +68,27 @@ TODO!
 
 ## MQTT Topics
 Every topic string begins with the currently set `mqtt_base_topic` name (E.g. `irrigation/state`)
- - Read:
-    - `/state`
-    - `/timeStamp`
-    - `/soilHumidity[/#]` (`'/#'` = index of sensor, Otherwise returns an avarage)
-    - `/flowRate`
-    - `/airTemperature`
-    - `/enclosureTemperature`
-    - `/airHumidity`
-    - `/movementDetected`
-    - `/currentValvePos`
-- Write: (Most of these can also be read by adding '/get' at the end)
-    - `/mode`
-    - `/targetValvePos`
-    - `/flowLimit`
-    - `/reportRate`
+ - Read: 
+    ('/#' = index of individual sensors)
+    
+    Name | Description
+    --- | ---
+    state | Program online state
+    timeStamp | Timestamp for when the data has been gathered (since the arduino has booted)
+    soilHumidity[/#] | Average/individual soil humidity value 
+    flowRate[/#] | Combined/individual flow rate
+    airTemperature | Greenhouse temperature value (in °C)
+    enclosureTemperature | Enclosure temperature value (in °C)
+    airHumidity | Greenhouse humidity value
+    movementDetected | Movement detected since last scan
+    currentValvePos | Estimated valve position (in %)
+    
+ - Write: 
+    (Most of these can also be read by adding '/get' at the end)
+    
+    Name | Description | Payload Value
+    --- | ---
+    mode | Valve control mode | 0 = Normal mode (set the valve position directly), 1 = Flow limit mode (Only let a set amount of flow through)
+    targetValvePos/# | Set the valve's position at index # (When normal mode used) | Percentage value (%)
+    flowLimit | Set the flow limit (TODO) | TODO (Haven't yet decided if i'm actually gonna implement this)
+    reportRate | Set the report rate of the arduino client | Value in milliseconds. Value below <1000ms will reset to the default report rate
