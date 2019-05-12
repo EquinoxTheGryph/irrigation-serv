@@ -87,7 +87,7 @@ Every topic string begins with the currently set `mqtt_base_topic` name (E.g. `i
     (Most of these can also be read by adding '/get' at the end)
     
     Name | Description | Payload Value
-    --- | ---
+    --- | --- | ---
     mode | Valve control mode | 0 = Normal mode (set the valve position directly), 1 = Flow limit mode (Only let a set amount of flow through)
     targetValvePos/# | Set the valve's position at index # (When normal mode used) | Percentage value (%)
     flowLimit | Set the flow limit (TODO) | TODO (Haven't yet decided if i'm actually gonna implement this)
