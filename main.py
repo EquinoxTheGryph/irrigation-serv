@@ -32,7 +32,6 @@ _subscribed_topics = {
 _published_topics = {
     "timeStamp" : None,
     "airHumidity" : None,
-    "flowRate" : None,
     "airTemperature" : None,
     "enclosureTemperature" : None,
     "movementDetected" : None,
@@ -52,6 +51,10 @@ _published_topics = {
     },
 
     "soilHumidity" : {
+        "as_array" : True
+    },
+    
+    "flowRate" : {
         "as_array" : True
     }
 }
