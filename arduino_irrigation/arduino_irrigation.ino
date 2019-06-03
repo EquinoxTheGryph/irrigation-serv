@@ -12,10 +12,8 @@
  * JSON format: (<0-x> means an integer range)
  *   Input:
  *      {
- *          "mode": <0-1>,
  *          "targetValvePos0": <0-100>,
  *          "targetValvePos1": <0-100>,
- *          "flowLimit": <0-x>,
  *          "reportInterval": <1000-x>  // Under 1000 will reset the interval to C_REPORT_INTERVAL
  *      }
  *   Output:
@@ -30,16 +28,15 @@
  *              <0-x>,
  *              <0-x>
  *          ],
+ *          "targetValvePos": [
+ *              <0-100>,
+ *              <0-100>
+ *          ],
  *          "airTemperature": <0-x>,
  *          "enclosureTemperature": <0-x>,
  *          "airHumidity": <0-x>,
  *          "doorOpen": <true or false>,
- *          "targetValvePos": <0-x>,
- *
- *              // Also report back the current input values
- *          "mode": <0-1>,
- *          "targetValvePos": <0-255>,
- *          "flowLimit": <0-x>,
+ *          "avgSoilHumidity": <0-x>,
  *      }
  *
  * TODO:
@@ -101,8 +98,7 @@
 // GLOBAL VARIABLES //
 
     // Input (From Serial)
-uint8_t targetValvePos0;
-uint8_t targetValvePos1;
+int targetValvePos[2];
 uint16_t reportInterval = C_REPORT_INTERVAL;
 
     // Output (To Serial)
@@ -115,14 +111,12 @@ float enclosureTemperature; // Temperature inside the enclosure
 bool doorOpen;
 
     // Don't change these values outside their intended functions!
-long targetValvePosMsec0;
-long targetValvePosMsec1;
+long targetValvePosMsec[2];
 unsigned long lastCheckTime;
 unsigned long lastTime;
 int reportDelta = 0;
 int delta = 0;
-int motorState0; // 0 = stop, -1 = closing, 1 = opening
-int motorState1;
+int motorState[2]; // 0 = stop, -1 = closing, 1 = opening
 
 volatile byte pulseCount0;
 volatile byte pulseCount1;
@@ -174,6 +168,12 @@ void setup() {
 
     // Attach interrupts for the water flow sensors
     setInterrupts(true);
+
+    // Move valves to home position
+    targetValvePosMsec[0] = C_VALVE_CLOSE_TIME;
+    targetValvePosMsec[1] = C_VALVE_CLOSE_TIME;
+    setMotor(0, -1);
+    setMotor(1, -1);
 }
 
 void loop() {
@@ -219,8 +219,10 @@ void sendStates() {
 
     // Build subarray containing the target valve positions
     JsonArray arr2 = jbuf.createNestedArray("targetValvePos");
-    arr2.add(targetValvePos0);
-    arr2.add(targetValvePos1);
+    for (int i = 0; i < ARRAYSIZE(targetValvePos); i++) {
+        arr2.add(targetValvePos[i]);
+    }
+
 
     // TODO: Maybe add current valve positions
 
@@ -254,15 +256,17 @@ void recieveStates() {
         }
 
         // Parsing succeeds! Set variables.
-        int valvePos0 = getJsonKeyValueAsInt(jsonInput, "targetValvePos0", targetValvePos0);
-        int valvePos1 = getJsonKeyValueAsInt(jsonInput, "targetValvePos1", targetValvePos1);
+        int valvePos0 = getJsonKeyValueAsInt(jsonInput, "targetValvePos0", targetValvePos[0]);
+        int valvePos1 = getJsonKeyValueAsInt(jsonInput, "targetValvePos1", targetValvePos[1]);
         reportInterval = getJsonKeyValueAsInt(jsonInput, "reportInterval", reportInterval);
+
+        // Set reportInterval to default if below 1000 ms (Avoids spamming)
         reportInterval = (reportInterval >= 1000) ? reportInterval : C_REPORT_INTERVAL;
 
         // Move valves if requested
-        if (valvePos0 != targetValvePos0)
+        if (valvePos0 != targetValvePos[0])
             setValve(0, valvePos0);
-        if (valvePos1 != targetValvePos1)
+        if (valvePos1 != targetValvePos[1])
             setValve(1, valvePos1);
 
         // Wait until the remaining data has been recieved and then make sure the serial buffer is empty.
@@ -270,6 +274,10 @@ void recieveStates() {
         while (Serial.available() > 0) {
             char t = Serial.read();
         }
+
+        // Publish the current values
+        publishArray("targetValvePos", targetValvePos, ARRAYSIZE(targetValvePos));
+        publish("reportInterval", reportInterval);
     }
 }
 
@@ -287,19 +295,11 @@ void setValve(byte which, uint8_t percentage) {
     int turnLength;
     int direction;
     unsigned long * selectedMsec;
-    uint8_t * selectedPerc;
+    int * selectedPerc;
 
     // Set references to the global variables
-    switch(which) {
-    case 0:
-        selectedMsec = &targetValvePosMsec0;
-        selectedPerc = &targetValvePos0;
-        break;
-    case 1:
-        selectedMsec = &targetValvePosMsec1;
-        selectedPerc = &targetValvePos1;
-        break;
-    }
+    selectedMsec = &targetValvePosMsec[which];
+    selectedPerc = &targetValvePos[which];
 
     // Set the direction which the valve should move to
     if (percentage > *selectedPerc)
@@ -336,38 +336,49 @@ void setValve(byte which, uint8_t percentage) {
 // Check wheter a valve should be stopped
 void checkValves() {
     // Uses delta
-    // Count down currently moving motors, stop them if they have reached their target
-    if (targetValvePosMsec0 > 0 && motorState0 != 0) {
-        targetValvePosMsec0 -= delta;
-    } else if (targetValvePosMsec0 <= 0 && motorState0 != 0) {
-        setMotor(0, 0);
-    }
+    // should we publish an updated value?
+    bool shouldPublish = false;
 
-    if (targetValvePosMsec1 > 0 && motorState1 != 0) {
-        targetValvePosMsec1 -= delta;
-    } else if (targetValvePosMsec1 <= 0 && motorState1 != 0) {
-        setMotor(1, 0);
+    // Count down currently moving motors, stop them if they have reached their target
+    for (int i; i < ARRAYSIZE(targetValvePos); i++) {
+        if (targetValvePosMsec[i] > 0 && motorState[i] != 0) {
+            targetValvePosMsec[i] -= delta;
+        } else if (targetValvePosMsec[i] <= 0 && motorState[i] != 0) {
+            setMotor(0, 0);
+        }
     }
 
     // If a valve touched a limit switch, stop that valve.
-    if (!digitalRead(PIN_VALVE_CLOSE_0) && motorState0 == -1) {
+    if (!digitalRead(PIN_VALVE_CLOSE_0) && motorState[0] == -1) {
         setMotor(0, 0);
-        targetValvePosMsec0 = 0;
+        targetValvePosMsec[0] = 0;
+        targetValvePos[0] = 0;
+        shouldPublish = true;
     }
 
-    if (!digitalRead(PIN_VALVE_OPEN_0) && motorState0 == 1) {
+    if (!digitalRead(PIN_VALVE_OPEN_0) && motorState[0] == 1) {
         setMotor(0, 0);
-        targetValvePosMsec0 = 0;
+        targetValvePosMsec[0] = 0;
+        targetValvePos[0] = 100;
+        shouldPublish = true;
     }
 
-    if (!digitalRead(PIN_VALVE_CLOSE_1) && motorState1 == -1) {
+    if (!digitalRead(PIN_VALVE_CLOSE_1) && motorState[1] == -1) {
         setMotor(1, 0);
-        targetValvePosMsec1 = 0;
+        targetValvePosMsec[1] = 0;
+        targetValvePos[1] = 0;
+        shouldPublish = true;
     }
 
-    if (!digitalRead(PIN_VALVE_OPEN_1) && motorState1 == 1) {
+    if (!digitalRead(PIN_VALVE_OPEN_1) && motorState[1] == 1) {
         setMotor(1, 0);
-        targetValvePosMsec1 = 0;
+        targetValvePosMsec[1] = 0;
+        targetValvePos[1] = 100;
+        shouldPublish = true;
+    }
+
+    if (shouldPublish) {
+        publishArray("targetValvePos", targetValvePos, 2);
     }
 }
 
@@ -381,12 +392,12 @@ void setMotor(int which, int direction) {
     case 0:
         outPin0 = PIN_VALVE_MOTOR_A0;
         outPin1 = PIN_VALVE_MOTOR_A1;
-        motorState0 = direction;
+        motorState[0] = direction;
         break;
     case 1:
         outPin0 = PIN_VALVE_MOTOR_B0;
         outPin1 = PIN_VALVE_MOTOR_B1;
-        motorState1 = direction;
+        motorState[1] = direction;
         break;
     }
 
@@ -489,6 +500,34 @@ void printError(char* errorMsg) {
 void printDebug(char* debugMsg) {
     StaticJsonDocument<C_SIZE_MSG> jbuf;
     jbuf["debug"] = debugMsg;
+    // Send data
+    serializeJson(jbuf, Serial);
+    // Make sure to print a new line
+    Serial.println();
+    //Serial.flush();
+}
+
+// Publish a value now
+void publish(String key, int value) {
+    StaticJsonDocument<C_SIZE_MSG> jbuf;
+    jbuf[key] = value;
+    // Send data
+    serializeJson(jbuf, Serial);
+    // Make sure to print a new line
+    Serial.println();
+    //Serial.flush();
+}
+
+// Publish a value as array now
+void publishArray(String key, int values[], int size) {
+    StaticJsonDocument<C_SIZE_MSG> jbuf;
+
+    // Put convert the array to a json array
+    JsonArray arr0 = jbuf.createNestedArray(key);
+    for (int i = 0; i < size; i++) {
+        arr0.add(values[i]);
+    }
+
     // Send data
     serializeJson(jbuf, Serial);
     // Make sure to print a new line

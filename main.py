@@ -18,9 +18,8 @@ POLLING_RATE = 3  # How many times per second it should check for serial events
 
 # Topics to subscribe to and relay to the serial output {Syntax = "topic_name" : data_type}
 _subscribed_topics = {
-    "mode": bool,
-    "flowLimit": int,
-    "targetValvePos": int,
+    "targetValvePos0": int,
+    "targetValvePos1": int,
     "reportInterval": int
 }
 
@@ -34,22 +33,16 @@ _published_topics = {
     "airHumidity" : None,
     "airTemperature" : None,
     "enclosureTemperature" : None,
-    "movementDetected" : None,
-    "currentValvePos" : None,
+    
     "soilHumidity" : {
         "from_key": "avgSoilHumidity"
     },
-
+    
     "targetValvePos" : {
-        "getter" : True
+        # "getter" : True,
+        "as_array": True
     },
-    "mode" : {
-        "getter" : True
-    },
-    "flowLimit" : {
-        "getter" : True
-    },
-
+    
     "soilHumidity" : {
         "as_array" : True
     },
@@ -224,7 +217,7 @@ def on_message(client, userdata, message):
         output_msg = {}
 
         for topic, data_type in _subscribed_topics.items():
-            output_msg[topic] = -1
+            #output_msg[topic] = -1
             if message.topic == "%s/%s" % (config.get("mqtt_base_topic"), topic):
                 if data_type is bool:
                     output_msg[topic] = str2bool(payload)
@@ -236,7 +229,7 @@ def on_message(client, userdata, message):
                     output_msg[topic] = float(payload)
                 else:
                     msg.e("Topic '%s' with payload '%s' could not be parsed due to expected type mismatch (expected %s)" % (topic, payload, data_type))
-                    output_msg[topic] = -1
+                    #output_msg[topic] = -1
 
         # Relay any matched message to Serial and make sure it's written properly
         output_json = json.dumps(output_msg)
