@@ -33,6 +33,7 @@ _published_topics = {
     "airHumidity" : None,
     "airTemperature" : None,
     "enclosureTemperature" : None,
+    "doorOpen": None,
     
     "soilHumidity" : {
         "from_key": "avgSoilHumidity"
