@@ -51,10 +51,10 @@
 // DEFINITIONS //
 
     // Define output pins for the valve
-#define PIN_VALVE_MOTOR_A0  8
-#define PIN_VALVE_MOTOR_A1  9
-#define PIN_VALVE_MOTOR_B0  10
-#define PIN_VALVE_MOTOR_B1  11
+#define PIN_VALVE_MOTOR_A0  9
+#define PIN_VALVE_MOTOR_A1  8
+#define PIN_VALVE_MOTOR_B0  11
+#define PIN_VALVE_MOTOR_B1  10
     // Define input pins for the valve state
 #define PIN_VALVE_OPEN_0    4
 #define PIN_VALVE_CLOSE_0   5
@@ -74,16 +74,21 @@
 #define PIN_SCL             A5
 
     // Define Constants
-#define C_REPORT_INTERVAL   4000    // The default amount of time (ms) between sending sensor data via serial
+#define C_REPORT_INTERVAL   10000    // The default amount of time (ms) between sending sensor data via serial
 #define C_VALVE_OPEN_TIME   4100    // The amount of time (ms) it takes to open the valve
 #define C_VALVE_CLOSE_TIME  4100    // The amount of time (ms) it takes to close the valve
 #define C_BAUD_RATE         9600    // Sets the serial Baud rate
 #define C_ADC_BASE_ADDR     0x48    // Sets the base I2C address of the ADS1115
-#define C_MOIST_SENS_AMOUNT 16      // Sets the amount of moisture sensors connected via the external ADC's
+#define C_MOIST_SENS_AMOUNT 4       // Sets the amount of moisture sensors connected via the external ADC's
 #define C_FLOW_SENS_AMOUNT  2       // Sets the amount of flow sensors connected
 #define C_MAX_FLOW_RATE     35      // FLOW SENSOR Maximum flow rate (in L/min)
 #define C_FLOW_CALIBRATION  7.71    // FLOW SENSOR Pulses per second per litre/minute of flow. (Pulses per liter / 60)
 #define C_DHT_TYPE          DHT22   // Set DHT (Temperature and Humidity sensor) type
+
+    // Enable/disable Extra Components, uncomment to enable
+//#define ENABLE_MOISTURE_1           // Enables extra moisture sensors
+//#define ENABLE_MOISTURE_2
+//#define ENABLE_MOISTURE_3
 
     // Define Maximum Array Sizes
 #define C_SIZE_INPUT        100
@@ -92,7 +97,34 @@
 
     // Define helper functions
 #define ARRAYSIZE(x)        (sizeof(x)/sizeof(*x))         // define a macro to calculate array size
-#define SOILCALIBRATION(x)  (map(x, 15000, 9000, 0, 100))  // this function is used to calibrate the soil sensors
+
+    // These functions is used to calibrate the soil sensors individually
+    // Set the minimum value to the value when using the sensor in very humid soil (Soil soaked in water)
+    // Set the maximum value to the value when using the sensor in air (Sensor dried off)
+    // Syntax: map(x, Max value, Min value, 0%, 100%)
+#define SOILCAL_00(x)  (map(x, 15300, 9150, 0, 100))
+#define SOILCAL_01(x)  (map(x, 15300, 8475, 0, 100))
+#define SOILCAL_02(x)  (map(x, 15240, 8550, 0, 100))
+#define SOILCAL_03(x)  (map(x, 14740, 8200, 0, 100))
+
+#ifdef ENABLE_MOISTURE_1
+  #define SOILCAL_10(x)  (map(x, 15000, 9000, 0, 100))
+  #define SOILCAL_11(x)  (map(x, 15000, 9000, 0, 100))
+  #define SOILCAL_12(x)  (map(x, 15000, 9000, 0, 100))
+  #define SOILCAL_13(x)  (map(x, 15000, 9000, 0, 100))
+#endif
+#ifdef ENABLE_MOISTURE_2
+  #define SOILCAL_20(x)  (map(x, 15000, 9000, 0, 100))
+  #define SOILCAL_21(x)  (map(x, 15000, 9000, 0, 100))
+  #define SOILCAL_22(x)  (map(x, 15000, 9000, 0, 100))
+  #define SOILCAL_23(x)  (map(x, 15000, 9000, 0, 100))
+#endif
+#ifdef ENABLE_MOISTURE_3
+  #define SOILCAL_30(x)  (map(x, 15000, 9000, 0, 100))
+  #define SOILCAL_31(x)  (map(x, 15000, 9000, 0, 100))
+  #define SOILCAL_32(x)  (map(x, 15000, 9000, 0, 100))
+  #define SOILCAL_33(x)  (map(x, 15000, 9000, 0, 100))
+#endif
 
 
 // GLOBAL VARIABLES //
@@ -125,9 +157,16 @@ volatile byte pulseCount1;
 // CLASS DEFINITIONS //
 
 Adafruit_ADS1115 Adc0(C_ADC_BASE_ADDR);
-Adafruit_ADS1115 Adc1(C_ADC_BASE_ADDR + 1);
-Adafruit_ADS1115 Adc2(C_ADC_BASE_ADDR + 2);
-Adafruit_ADS1115 Adc3(C_ADC_BASE_ADDR + 3);
+
+#ifdef ENABLE_MOISTURE_1
+  Adafruit_ADS1115 Adc1(C_ADC_BASE_ADDR + 1);
+#endif
+#ifdef ENABLE_MOISTURE_2
+  Adafruit_ADS1115 Adc2(C_ADC_BASE_ADDR + 2);
+#endif
+#ifdef ENABLE_MOISTURE_3
+  Adafruit_ADS1115 Adc3(C_ADC_BASE_ADDR + 3);
+#endif
 
 DHT Dht0(PIN_TEMP_EXT, C_DHT_TYPE);
 DHT Dht1(PIN_TEMP_INT, C_DHT_TYPE);
@@ -158,9 +197,16 @@ void setup() {
 
     // Initialize ADCs
     Adc0.begin();
-    Adc1.begin();
-    Adc2.begin();
-    Adc3.begin();
+    
+    #ifdef ENABLE_MOISTURE_1
+      Adc1.begin();
+    #endif
+    #ifdef ENABLE_MOISTURE_2
+      Adc2.begin();
+    #endif
+    #ifdef ENABLE_MOISTURE_3
+      Adc3.begin();
+    #endif
 
     // Initialize DHTs
     Dht0.begin();
@@ -422,12 +468,50 @@ void setMotor(int which, int direction) {
 // Sets: soilHumidity, avgSoilHumidity
 void updateSoilHumidity(){
     // Get individual values and apply calibrations
-    for(int i; i < C_MOIST_SENS_AMOUNT / 4; i++) {
-        soilHumidity[i]    = SOILCALIBRATION(Adc0.readADC_SingleEnded(i));
-        soilHumidity[i+4]  = SOILCALIBRATION(Adc1.readADC_SingleEnded(i));
-        soilHumidity[i+8]  = SOILCALIBRATION(Adc2.readADC_SingleEnded(i));
-        soilHumidity[i+12] = SOILCALIBRATION(Adc3.readADC_SingleEnded(i));
-    }
+//    for(int i = 0; i < C_MOIST_SENS_AMOUNT; i++) {
+//        if(i < 4) {
+//          soilHumidity[i]    = Adc0.readADC_SingleEnded(i);//SOILCALIBRATION(Adc0.readADC_SingleEnded(i));
+//        }
+//        #ifdef ENABLE_MOISTURE_1
+//          if(i >= 4 and i < 8) {
+//            soilHumidity[i]  = SOILCALIBRATION(Adc1.readADC_SingleEnded(i - 4));
+//          }
+//        #endif
+//        #ifdef ENABLE_MOISTURE_2
+//          if(i >= 8 and i < 12) {
+//            soilHumidity[i]  = SOILCALIBRATION(Adc2.readADC_SingleEnded(i - 8));
+//          }
+//        #endif
+//        #ifdef ENABLE_MOISTURE_3
+//          if(i >= 12 and i < 16) {
+//            soilHumidity[i] = SOILCALIBRATION(Adc3.readADC_SingleEnded(i - 12));
+//          }
+//        #endif
+//    }
+    soilHumidity[0] =       SOILCAL_00(Adc0.readADC_SingleEnded(0));
+    soilHumidity[1] =       SOILCAL_01(Adc0.readADC_SingleEnded(1));
+    soilHumidity[2] =       SOILCAL_02(Adc0.readADC_SingleEnded(2));
+    soilHumidity[3] =       SOILCAL_03(Adc0.readADC_SingleEnded(3));
+    
+    #ifdef ENABLE_MOISTURE_1
+      soilHumidity[4] =     SOILCAL_10(Adc1.readADC_SingleEnded(0));
+      soilHumidity[5] =     SOILCAL_11(Adc1.readADC_SingleEnded(1));
+      soilHumidity[6] =     SOILCAL_12(Adc1.readADC_SingleEnded(2));
+      soilHumidity[7] =     SOILCAL_13(Adc1.readADC_SingleEnded(3));
+    #endif
+    #ifdef ENABLE_MOISTURE_2
+      soilHumidity[8]  =    SOILCAL_20(Adc2.readADC_SingleEnded(0));
+      soilHumidity[9]  =    SOILCAL_21(Adc2.readADC_SingleEnded(1));
+      soilHumidity[10] =    SOILCAL_22(Adc2.readADC_SingleEnded(2));
+      soilHumidity[11] =    SOILCAL_23(Adc2.readADC_SingleEnded(3));
+    #endif
+    #ifdef ENABLE_MOISTURE_3
+      soilHumidity[12] =    SOILCAL_30(Adc3.readADC_SingleEnded(0));
+      soilHumidity[13] =    SOILCAL_31(Adc3.readADC_SingleEnded(1));
+      soilHumidity[14] =    SOILCAL_32(Adc3.readADC_SingleEnded(2));
+      soilHumidity[15] =    SOILCAL_33(Adc3.readADC_SingleEnded(3));
+    #endif
+   
 
     // Calculate the average soil humidity
     uint16_t currentAvg = soilHumidity[0];
