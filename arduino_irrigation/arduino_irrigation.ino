@@ -38,7 +38,7 @@
  *          "doorOpen": <true or false>,
  *          "avgSoilHumidity": <0-x>,
  *          "valve0FullyOpen": bool,
- *          "valve0FulllClosed": bool,
+ *          "valve0FullyClosed": bool,
  *          "valve1FullyOpen": bool,
  *          "valve1FullyClosed": bool,
  *      }
@@ -279,7 +279,7 @@ void sendStates() {
 
     
     jbuf["valve0FullyOpen"]   = !digitalRead(PIN_VALVE_OPEN_0);
-    jbuf["valve0FulllClosed"] = !digitalRead(PIN_VALVE_CLOSE_0);
+    jbuf["valve0FullyClosed"] = !digitalRead(PIN_VALVE_CLOSE_0);
     jbuf["valve1FullyOpen"]   = !digitalRead(PIN_VALVE_OPEN_1);
     jbuf["valve1FullyClosed"] = !digitalRead(PIN_VALVE_CLOSE_1);
 
@@ -368,15 +368,6 @@ void checkValves() {
     // Uses delta
     // should we publish an updated value?
     bool shouldPublish = false;
-
-    // Count down currently moving motors, stop them if they have reached their target
-    // for (int i; i < ARRAYSIZE(targetValvePos); i++) {
-    //     if (targetValvePosMsec[i] > 0 && motorState[i] != 0) {
-    //         targetValvePosMsec[i] -= delta;
-    //     } else if (targetValvePosMsec[i] <= 0 && motorState[i] != 0) {
-    //         setMotor(0, 0);
-    //     }
-    // }
 
     // If a valve touched a limit switch, stop that valve.
     if (!digitalRead(PIN_VALVE_CLOSE_0) && motorState[0] == -1) {
@@ -562,7 +553,6 @@ void printError(char* errorMsg) {
     serializeJson(jbuf, Serial);
     // Make sure to print a new line
     Serial.println();
-    //Serial.flush();
 }
 
 // Print a simple debug message in json form
@@ -573,7 +563,6 @@ void printDebug(char* debugMsg) {
     serializeJson(jbuf, Serial);
     // Make sure to print a new line
     Serial.println();
-    //Serial.flush();
 }
 
 // Publish a value now
@@ -584,7 +573,6 @@ void publish(String key, int value) {
     serializeJson(jbuf, Serial);
     // Make sure to print a new line
     Serial.println();
-    //Serial.flush();
 }
 
 // Publish a value as array now
@@ -601,7 +589,6 @@ void publishArrayInt(String key, int values[], int size) {
     serializeJson(jbuf, Serial);
     // Make sure to print a new line
     Serial.println();
-    //Serial.flush();
 }
 
 void publishArrayBool(String key, bool values[], int size) {
@@ -617,7 +604,6 @@ void publishArrayBool(String key, bool values[], int size) {
     serializeJson(jbuf, Serial);
     // Make sure to print a new line
     Serial.println();
-    //Serial.flush();
 }
 
 // Get a json key value, use defaultVal if key is not found

@@ -38,7 +38,7 @@ _published_topics = {
     "doorOpen": None,
     
     "valve0FullyOpen"   : None,
-    "valve0FulllClosed" : None,
+    "valve0FullyClosed" : None,
     "valve1FullyOpen"   : None,
     "valve1FullyClosed" : None,
     
