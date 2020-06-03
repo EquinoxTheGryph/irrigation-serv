@@ -42,12 +42,11 @@ _published_topics = {
     "valve1FullyOpen"   : None,
     "valve1FullyClosed" : None,
     
-    "soilHumidity" : {
+    "soilHumidity/avg" : {
         "from_key": "avgSoilHumidity"
     },
     
     "targetValvePos" : {
-        # "getter" : True,
         "as_array": True
     },
     
@@ -200,6 +199,7 @@ def attempt_publish_data(json_obj, key, getter = False, from_key = None, as_arra
             if from_key is None:
                 client.publish("%s/%s%s" % (config.get("mqtt_base_topic"), key, topic_suffix), json_obj[key])
             else:
+                print(str(from_key) + " -> " + key)
                 client.publish("%s/%s%s" % (config.get("mqtt_base_topic"), key, topic_suffix), json_obj[from_key])
         else:
             # Iterate through the supplied array key
