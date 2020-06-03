@@ -18,8 +18,8 @@ POLLING_RATE = 3  # How many times per second it should check for serial events
 
 # Topics to subscribe to and relay to the serial output {Syntax = "topic_name" : data_type}
 _subscribed_topics = {
-    "targetValvePos0": int,
-    "targetValvePos1": int,
+    "targetValvePos0": bool,
+    "targetValvePos1": bool,
     "reportInterval": int
 }
 

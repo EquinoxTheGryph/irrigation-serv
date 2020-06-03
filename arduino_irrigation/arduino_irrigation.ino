@@ -78,11 +78,7 @@
 #define PIN_SCL             A5
 
     // Define Constants
-<<<<<<< HEAD
 #define C_REPORT_INTERVAL   5000    // The default amount of time (ms) between sending sensor data via serial
-=======
-#define C_REPORT_INTERVAL   10000    // The default amount of time (ms) between sending sensor data via serial
->>>>>>> 858da9d9e6530e5ce69ba272bba50359d2a9b0bf
 #define C_VALVE_OPEN_TIME   4100    // The amount of time (ms) it takes to open the valve
 #define C_VALVE_CLOSE_TIME  4100    // The amount of time (ms) it takes to close the valve
 #define C_BAUD_RATE         9600    // Sets the serial Baud rate
@@ -138,7 +134,7 @@
 // GLOBAL VARIABLES //
 
     // Input (From Serial)
-int targetValvePos[2];
+bool targetValvePos[2]; // true: Open, false: Closed
 uint16_t reportInterval = C_REPORT_INTERVAL;
 
     // Output (To Serial)
@@ -156,7 +152,7 @@ bool doorOpen;
 // bool valve1FullyClosed;
 
     // Don't change these values outside their intended functions!
-long targetValvePosMsec[2];
+//long targetValvePosMsec[2];
 unsigned long lastCheckTime;
 unsigned long lastTime;
 int reportDelta = 0;
@@ -229,13 +225,12 @@ void setup() {
     setInterrupts(true);
 
     // Move valves to home position
-    targetValvePosMsec[0] = C_VALVE_CLOSE_TIME;
-    targetValvePosMsec[1] = C_VALVE_CLOSE_TIME;
     setMotor(0, -1);
     setMotor(1, -1);
 }
 
 void loop() {
+    // Check for any json messages
     recieveStates();
 
     // Perform functions at set intervals
@@ -283,10 +278,10 @@ void sendStates() {
     }
 
     
-    jbuf["valve0FullyOpen"]   = digitalRead(PIN_VALVE_OPEN_0);
-    jbuf["valve0FulllClosed"] = digitalRead(PIN_VALVE_CLOSE_0);
-    jbuf["valve1FullyOpen"]   = digitalRead(PIN_VALVE_OPEN_1);
-    jbuf["valve1FullyClosed"] = digitalRead(PIN_VALVE_CLOSE_1);
+    jbuf["valve0FullyOpen"]   = !digitalRead(PIN_VALVE_OPEN_0);
+    jbuf["valve0FulllClosed"] = !digitalRead(PIN_VALVE_CLOSE_0);
+    jbuf["valve1FullyOpen"]   = !digitalRead(PIN_VALVE_OPEN_1);
+    jbuf["valve1FullyClosed"] = !digitalRead(PIN_VALVE_CLOSE_1);
 
 
     // TODO: Maybe add current valve positions
@@ -310,7 +305,6 @@ void sendStates() {
 // Read Serial data and parse values
 void recieveStates() {
     if (Serial.available()) {
-
         StaticJsonDocument<C_SIZE_INPUT> jsonInput;
         DeserializationError err = deserializeJson(jsonInput, Serial);
 
@@ -321,8 +315,8 @@ void recieveStates() {
         }
 
         // Parsing succeeds! Set variables.
-        int valvePos0 = getJsonKeyValueAsInt(jsonInput, "targetValvePos0", targetValvePos[0]);
-        int valvePos1 = getJsonKeyValueAsInt(jsonInput, "targetValvePos1", targetValvePos[1]);
+        bool valvePos0 = getJsonKeyValueAsBool(jsonInput, "targetValvePos0", targetValvePos[0]);
+        bool valvePos1 = getJsonKeyValueAsBool(jsonInput, "targetValvePos1", targetValvePos[1]);
         reportInterval = getJsonKeyValueAsInt(jsonInput, "reportInterval", reportInterval);
 
         // Set reportInterval to default if below 1000 ms (Avoids spamming)
@@ -341,7 +335,7 @@ void recieveStates() {
         }
 
         // Publish the current values
-        publishArray("targetValvePos", targetValvePos, ARRAYSIZE(targetValvePos));
+        publishArrayBool("targetValvePos", targetValvePos, ARRAYSIZE(targetValvePos));
         publish("reportInterval", reportInterval);
     }
 }
@@ -355,44 +349,15 @@ void updateSensorValues(){
     doorOpen = digitalRead(PIN_DOOR);
 }
 
-// Turn the valve until it (predictivly) reaches the desired state. (0-100)
-void setValve(byte which, uint8_t percentage) {
-    int turnLength;
+// Turn the valve until it (predictivly) reaches the desired state. 
+void setValve(byte which, bool state) {
     int direction;
-    unsigned long * selectedMsec;
-    int * selectedPerc;
-
-    // Set references to the global variables
-    selectedMsec = &targetValvePosMsec[which];
-    selectedPerc = &targetValvePos[which];
 
     // Set the direction which the valve should move to
-    if (percentage > *selectedPerc)
+    if (direction)
         direction = 1;
-    else if (percentage < *selectedPerc)
-        direction = -1;
     else
-        direction = 0;
-
-    // Get the opening or closing time, depending on the direction
-    turnLength = (direction == -1) ? C_VALVE_CLOSE_TIME : C_VALVE_OPEN_TIME;
-    int percentageChange = abs(*selectedPerc - percentage);
-
-    // Determine for how long the valve should turn
-    switch(percentage) {
-        case 0:
-            *selectedMsec = C_VALVE_CLOSE_TIME + 2000; // Add some time to ensure proper sealing
-            break;
-        case 100:
-            *selectedMsec = C_VALVE_OPEN_TIME + 2000;
-            break;
-        default:
-            *selectedMsec = (turnLength / 100) * percentageChange;
-            break;
-    }
-
-    // Update target percentage
-    *selectedPerc = percentage;
+        direction = -1;
 
     // Move the motor in the desired direction
     setMotor(which, direction);
@@ -405,50 +370,51 @@ void checkValves() {
     bool shouldPublish = false;
 
     // Count down currently moving motors, stop them if they have reached their target
-    for (int i; i < ARRAYSIZE(targetValvePos); i++) {
-        if (targetValvePosMsec[i] > 0 && motorState[i] != 0) {
-            targetValvePosMsec[i] -= delta;
-        } else if (targetValvePosMsec[i] <= 0 && motorState[i] != 0) {
-            setMotor(0, 0);
-        }
-    }
+    // for (int i; i < ARRAYSIZE(targetValvePos); i++) {
+    //     if (targetValvePosMsec[i] > 0 && motorState[i] != 0) {
+    //         targetValvePosMsec[i] -= delta;
+    //     } else if (targetValvePosMsec[i] <= 0 && motorState[i] != 0) {
+    //         setMotor(0, 0);
+    //     }
+    // }
 
     // If a valve touched a limit switch, stop that valve.
     if (!digitalRead(PIN_VALVE_CLOSE_0) && motorState[0] == -1) {
         setMotor(0, 0);
-        targetValvePosMsec[0] = 0;
-        targetValvePos[0] = 0;
+        targetValvePos[0] = false;
         shouldPublish = true;
     }
 
     if (!digitalRead(PIN_VALVE_OPEN_0) && motorState[0] == 1) {
         setMotor(0, 0);
-        targetValvePosMsec[0] = 0;
-        targetValvePos[0] = 100;
+        targetValvePos[0] = true;
         shouldPublish = true;
     }
 
     if (!digitalRead(PIN_VALVE_CLOSE_1) && motorState[1] == -1) {
         setMotor(1, 0);
-        targetValvePosMsec[1] = 0;
-        targetValvePos[1] = 0;
+        targetValvePos[1] = false;
         shouldPublish = true;
     }
 
     if (!digitalRead(PIN_VALVE_OPEN_1) && motorState[1] == 1) {
         setMotor(1, 0);
-        targetValvePosMsec[1] = 0;
-        targetValvePos[1] = 100;
+        targetValvePos[1] = true;
         shouldPublish = true;
     }
 
     if (shouldPublish) {
-        publishArray("targetValvePos", targetValvePos, 2);
+        publishArrayBool("targetValvePos", targetValvePos, 2);
     }
 }
 
-// Turn or stop valve motor. direction: 0 = Stop, -1 = Close, 1 = Open
+// Turn or stop valve motor, without any checking. direction: 0 = Stop, -1 = Close, 1 = Open
 void setMotor(int which, int direction) {
+    Serial.print("Valve: ");
+    Serial.print(which);
+    Serial.print("  Dir: ");
+    Serial.println(direction);
+
     int outPin0;
     int outPin1;
 
@@ -622,7 +588,23 @@ void publish(String key, int value) {
 }
 
 // Publish a value as array now
-void publishArray(String key, int values[], int size) {
+void publishArrayInt(String key, int values[], int size) {
+    StaticJsonDocument<C_SIZE_MSG> jbuf;
+
+    // Put convert the array to a json array
+    JsonArray arr0 = jbuf.createNestedArray(key);
+    for (int i = 0; i < size; i++) {
+        arr0.add(values[i]);
+    }
+
+    // Send data
+    serializeJson(jbuf, Serial);
+    // Make sure to print a new line
+    Serial.println();
+    //Serial.flush();
+}
+
+void publishArrayBool(String key, bool values[], int size) {
     StaticJsonDocument<C_SIZE_MSG> jbuf;
 
     // Put convert the array to a json array
@@ -643,5 +625,11 @@ void publishArray(String key, int values[], int size) {
 int getJsonKeyValueAsInt(StaticJsonDocument<C_SIZE_INPUT> doc, String key, int defaultVal) {
     JsonVariant outVariant = doc.getMember(key);
     int out = (!outVariant.isNull()) ? outVariant.as<int>() : defaultVal;
+    return out;
+}
+
+bool getJsonKeyValueAsBool(StaticJsonDocument<C_SIZE_INPUT> doc, String key, bool defaultVal) {
+    JsonVariant outVariant = doc.getMember(key);
+    bool out = (!outVariant.isNull()) ? outVariant.as<bool>() : defaultVal;
     return out;
 }
