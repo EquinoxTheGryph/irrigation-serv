@@ -37,6 +37,10 @@
  *          "airHumidity": <0-x>,
  *          "doorOpen": <true or false>,
  *          "avgSoilHumidity": <0-x>,
+ *          "valve0FullyOpen": bool,
+ *          "valve0FulllClosed": bool,
+ *          "valve1FullyOpen": bool,
+ *          "valve1FullyClosed": bool,
  *      }
  *
  * TODO:
@@ -74,7 +78,7 @@
 #define PIN_SCL             A5
 
     // Define Constants
-#define C_REPORT_INTERVAL   10000    // The default amount of time (ms) between sending sensor data via serial
+#define C_REPORT_INTERVAL   5000    // The default amount of time (ms) between sending sensor data via serial
 #define C_VALVE_OPEN_TIME   4100    // The amount of time (ms) it takes to open the valve
 #define C_VALVE_CLOSE_TIME  4100    // The amount of time (ms) it takes to close the valve
 #define C_BAUD_RATE         9600    // Sets the serial Baud rate
@@ -141,6 +145,11 @@ float flowRate[2];         // Currently picked up flow rate in L/min
 float airTemperature;
 float enclosureTemperature; // Temperature inside the enclosure
 bool doorOpen;
+
+// bool valve0FullyOpen;
+// bool valve0FullyClosed;
+// bool valve1FullyOpen;
+// bool valve1FullyClosed;
 
     // Don't change these values outside their intended functions!
 long targetValvePosMsec[2];
@@ -268,6 +277,12 @@ void sendStates() {
     for (int i = 0; i < ARRAYSIZE(targetValvePos); i++) {
         arr2.add(targetValvePos[i]);
     }
+
+    
+    jbuf["valve0FullyOpen"]   = digitalRead(PIN_VALVE_OPEN_0);
+    jbuf["valve0FulllClosed"] = digitalRead(PIN_VALVE_CLOSE_0);
+    jbuf["valve1FullyOpen"]   = digitalRead(PIN_VALVE_OPEN_1);
+    jbuf["valve1FullyClosed"] = digitalRead(PIN_VALVE_CLOSE_1);
 
 
     // TODO: Maybe add current valve positions

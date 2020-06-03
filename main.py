@@ -23,7 +23,9 @@ _subscribed_topics = {
     "reportInterval": int
 }
 
-# Topics to parse from the serial stream to publish to mqtt {Syntax = "topic_name" : {extra_data} OR None}
+# Topics to parse from the serial stream to publish to mqtt 
+#
+# Syntax = "topic_name" : {extra_data} OR None
 # Extra data keys:
 #   - "from_key" : str (key to look for when recieving data)
 #   - "getter" : bool (suffix topic with '/get')
@@ -34,6 +36,11 @@ _published_topics = {
     "airTemperature" : None,
     "enclosureTemperature" : None,
     "doorOpen": None,
+    
+    "valve0FullyOpen"   : None,
+    "valve0FulllClosed" : None,
+    "valve1FullyOpen"   : None,
+    "valve1FullyClosed" : None,
     
     "soilHumidity" : {
         "from_key": "avgSoilHumidity"
