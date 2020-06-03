@@ -354,7 +354,7 @@ void setValve(byte which, bool state) {
     int direction;
 
     // Set the direction which the valve should move to
-    if (direction)
+    if (state)
         direction = 1;
     else
         direction = -1;
