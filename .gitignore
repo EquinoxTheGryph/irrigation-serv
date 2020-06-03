@@ -5,3 +5,4 @@ __pycache__/
 .directory
 server-config.json
 .hex
+.vscode
