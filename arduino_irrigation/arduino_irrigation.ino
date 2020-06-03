@@ -78,7 +78,11 @@
 #define PIN_SCL             A5
 
     // Define Constants
+<<<<<<< HEAD
 #define C_REPORT_INTERVAL   5000    // The default amount of time (ms) between sending sensor data via serial
+=======
+#define C_REPORT_INTERVAL   10000    // The default amount of time (ms) between sending sensor data via serial
+>>>>>>> 858da9d9e6530e5ce69ba272bba50359d2a9b0bf
 #define C_VALVE_OPEN_TIME   4100    // The amount of time (ms) it takes to open the valve
 #define C_VALVE_CLOSE_TIME  4100    // The amount of time (ms) it takes to close the valve
 #define C_BAUD_RATE         9600    // Sets the serial Baud rate
