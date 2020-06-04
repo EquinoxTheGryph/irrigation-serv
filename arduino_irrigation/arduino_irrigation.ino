@@ -12,8 +12,8 @@
  * JSON format: (<0-x> means an integer range)
  *   Input:
  *      {
- *          "targetValvePos0": <0-100>,
- *          "targetValvePos1": <0-100>,
+ *          "valve/0/set": <0-100>,
+ *          "valve/1/set": <0-100>,
  *          "reportInterval": <1000-x>  // Under 1000 will reset the interval to C_REPORT_INTERVAL
  *      }
  *   Output:
@@ -28,19 +28,18 @@
  *              <0-x>,
  *              <0-x>
  *          ],
- *          "targetValvePos": [
- *              <0-100>,
- *              <0-100>
- *          ],
+ *          "valve/0/get": bool,
+ *          "valve/1/get": bool,
  *          "airTemperature": <0-x>,
  *          "enclosureTemperature": <0-x>,
  *          "airHumidity": <0-x>,
  *          "doorOpen": <true or false>,
  *          "avgSoilHumidity": <0-x>,
- *          "valve0FullyOpen": bool,
- *          "valve0FullyClosed": bool,
- *          "valve1FullyOpen": bool,
- *          "valve1FullyClosed": bool,
+ * 
+ *          "valve/0/isFullyOpen" : bool,
+ *          "valve/0/isFullyClosed" : bool,
+ *          "valve/1/isFullyOpen" : bool,
+ *          "valve/1/isFullyClosed" : bool,
  *      }
  *
  * TODO:
@@ -106,53 +105,55 @@
     // Set the minimum value to the value when using the sensor in very humid soil (Soil soaked in water)
     // Set the maximum value to the value when using the sensor in air (Sensor dried off)
     // Syntax: map(x, Max value, Min value, 0%, 100%)
-#define SOILCAL_00(x)  (map(x, 15300, 9150, 0, 100))
-#define SOILCAL_01(x)  (map(x, 15300, 8475, 0, 100))
-#define SOILCAL_02(x)  (map(x, 15240, 8550, 0, 100))
-#define SOILCAL_03(x)  (map(x, 14740, 8200, 0, 100))
+// #define SOILCAL_00(x)  (map(x, 15300, 9150, 0.00, 100.00))
+// #define SOILCAL_01(x)  (map(x, 15300, 8475, 0.00, 100.00))
+// #define SOILCAL_02(x)  (map(x, 15240, 8550, 0.00, 100.00))
+// #define SOILCAL_03(x)  (map(x, 14740, 8200, 0.00, 100.00))
 
-#ifdef ENABLE_MOISTURE_1
-  #define SOILCAL_10(x)  (map(x, 15000, 9000, 0, 100))
-  #define SOILCAL_11(x)  (map(x, 15000, 9000, 0, 100))
-  #define SOILCAL_12(x)  (map(x, 15000, 9000, 0, 100))
-  #define SOILCAL_13(x)  (map(x, 15000, 9000, 0, 100))
-#endif
-#ifdef ENABLE_MOISTURE_2
-  #define SOILCAL_20(x)  (map(x, 15000, 9000, 0, 100))
-  #define SOILCAL_21(x)  (map(x, 15000, 9000, 0, 100))
-  #define SOILCAL_22(x)  (map(x, 15000, 9000, 0, 100))
-  #define SOILCAL_23(x)  (map(x, 15000, 9000, 0, 100))
-#endif
-#ifdef ENABLE_MOISTURE_3
-  #define SOILCAL_30(x)  (map(x, 15000, 9000, 0, 100))
-  #define SOILCAL_31(x)  (map(x, 15000, 9000, 0, 100))
-  #define SOILCAL_32(x)  (map(x, 15000, 9000, 0, 100))
-  #define SOILCAL_33(x)  (map(x, 15000, 9000, 0, 100))
-#endif
+// #ifdef ENABLE_MOISTURE_1
+//   #define SOILCAL_10(x)  (map(x, 15000, 9000, 0, 100))
+//   #define SOILCAL_11(x)  (map(x, 15000, 9000, 0, 100))
+//   #define SOILCAL_12(x)  (map(x, 15000, 9000, 0, 100))
+//   #define SOILCAL_13(x)  (map(x, 15000, 9000, 0, 100))
+// #endif
+// #ifdef ENABLE_MOISTURE_2
+//   #define SOILCAL_20(x)  (map(x, 15000, 9000, 0, 100))
+//   #define SOILCAL_21(x)  (map(x, 15000, 9000, 0, 100))
+//   #define SOILCAL_22(x)  (map(x, 15000, 9000, 0, 100))
+//   #define SOILCAL_23(x)  (map(x, 15000, 9000, 0, 100))
+// #endif
+// #ifdef ENABLE_MOISTURE_3
+//   #define SOILCAL_30(x)  (map(x, 15000, 9000, 0, 100))
+//   #define SOILCAL_31(x)  (map(x, 15000, 9000, 0, 100))
+//   #define SOILCAL_32(x)  (map(x, 15000, 9000, 0, 100))
+//   #define SOILCAL_33(x)  (map(x, 15000, 9000, 0, 100))
+// #endif
+uint16_t soilCallibration[4][2] = {
+    {15300, 9150},
+    {15300, 8475},
+    {15240, 8550},
+    {14740, 8200}
+};
 
 
 // GLOBAL VARIABLES //
 
     // Input (From Serial)
-bool targetValvePos[2]; // true: Open, false: Closed
+bool targetValvePos0; // true: Open, false: Closed
+bool targetValvePos1; 
 uint16_t reportInterval = C_REPORT_INTERVAL;
+bool doorTrigger = true; // Should valve 0 close when door has been opened?  
 
     // Output (To Serial)
-uint16_t soilHumidity[C_MOIST_SENS_AMOUNT];
-uint16_t avgSoilHumidity;
+float soilHumidity[C_MOIST_SENS_AMOUNT];
+float avgSoilHumidity;
 uint16_t airHumidity;
 float flowRate[2];         // Currently picked up flow rate in L/min
 float airTemperature;
 float enclosureTemperature; // Temperature inside the enclosure
 bool doorOpen;
 
-// bool valve0FullyOpen;
-// bool valve0FullyClosed;
-// bool valve1FullyOpen;
-// bool valve1FullyClosed;
-
     // Don't change these values outside their intended functions!
-//long targetValvePosMsec[2];
 unsigned long lastCheckTime;
 unsigned long lastTime;
 int reportDelta = 0;
@@ -189,7 +190,7 @@ void setup() {
     while (!Serial) continue;
 
     // Initialize pins
-    pinMode(PIN_STATUS, OUTPUT);
+    //pinMode(PIN_STATUS, OUTPUT);
     pinMode(PIN_FLOW_METER_0, INPUT);
     pinMode(PIN_FLOW_METER_1, INPUT);
     pinMode(PIN_DOOR, INPUT_PULLUP);
@@ -233,6 +234,14 @@ void loop() {
     // Check for any json messages
     recieveStates();
 
+    // Check door state, if valve should close when the door opens, close valve
+    if (doorTrigger && digitalRead(PIN_DOOR) && targetValvePos0) {
+        targetValvePos0 = false;
+        setMotor(0, -1);
+        publishBool("valve/0/get", false);
+        publishBool("doorOpen", true);
+    }
+
     // Perform functions at set intervals
     unsigned long currentCheckTime = millis();
     delta = millis() - lastTime;
@@ -271,17 +280,11 @@ void sendStates() {
         arr1.add(flowRate[i]);
     }
 
-    // Build subarray containing the target valve positions
-    JsonArray arr2 = jbuf.createNestedArray("targetValvePos");
-    for (int i = 0; i < ARRAYSIZE(targetValvePos); i++) {
-        arr2.add(targetValvePos[i]);
-    }
-
     
-    jbuf["valve0FullyOpen"]   = !digitalRead(PIN_VALVE_OPEN_0);
-    jbuf["valve0FullyClosed"] = !digitalRead(PIN_VALVE_CLOSE_0);
-    jbuf["valve1FullyOpen"]   = !digitalRead(PIN_VALVE_OPEN_1);
-    jbuf["valve1FullyClosed"] = !digitalRead(PIN_VALVE_CLOSE_1);
+    jbuf["valve/0/isFullyOpen"]   = !digitalRead(PIN_VALVE_OPEN_0);
+    jbuf["valve/0/isFullyClosed"] = !digitalRead(PIN_VALVE_CLOSE_0);
+    jbuf["valve/1/isFullyOpen"]   = !digitalRead(PIN_VALVE_OPEN_1);
+    jbuf["valve/1/isFullyClosed"] = !digitalRead(PIN_VALVE_CLOSE_1);
 
 
     // TODO: Maybe add current valve positions
@@ -292,6 +295,11 @@ void sendStates() {
     jbuf["enclosureTemperature"] = enclosureTemperature;
     jbuf["doorOpen"] = doorOpen;
     jbuf["avgSoilHumidity"] = avgSoilHumidity;
+    
+    if (motorState[0] == 0)
+        jbuf["valve/0/get"] = targetValvePos0;
+    if (motorState[1] == 0)
+        jbuf["valve/1/get"] = targetValvePos1;
 
     // Output data to serial
     serializeJson(jbuf, Serial);
@@ -315,17 +323,26 @@ void recieveStates() {
         }
 
         // Parsing succeeds! Set variables.
-        bool valvePos0 = getJsonKeyValueAsBool(jsonInput, "targetValvePos0", targetValvePos[0]);
-        bool valvePos1 = getJsonKeyValueAsBool(jsonInput, "targetValvePos1", targetValvePos[1]);
+        // Skips valve 0 if door is open (and config is set)
+        bool valvePos0 = targetValvePos0;
+        if (doorTrigger && !digitalRead(PIN_DOOR)) {
+            valvePos0 = getJsonKeyValueAsBool(jsonInput, "valve/0/set", targetValvePos0);
+        } else {
+            printError("Can't change valve 0, door is open!");
+        }
+
+        bool valvePos1 = getJsonKeyValueAsBool(jsonInput, "valve/1/set", targetValvePos1);
         reportInterval = getJsonKeyValueAsInt(jsonInput, "reportInterval", reportInterval);
+        doorTrigger = getJsonKeyValueAsBool(jsonInput, "doorTrigger", doorTrigger);
 
         // Set reportInterval to default if below 1000 ms (Avoids spamming)
         reportInterval = (reportInterval >= 1000) ? reportInterval : C_REPORT_INTERVAL;
 
+
         // Move valves if requested
-        if (valvePos0 != targetValvePos[0])
+        if (valvePos0 != targetValvePos0)
             setValve(0, valvePos0);
-        if (valvePos1 != targetValvePos[1])
+        if (valvePos1 != targetValvePos1)
             setValve(1, valvePos1);
 
         // Wait until the remaining data has been recieved and then make sure the serial buffer is empty.
@@ -335,8 +352,9 @@ void recieveStates() {
         }
 
         // Publish the current values
-        publishArrayBool("targetValvePos", targetValvePos, ARRAYSIZE(targetValvePos));
-        publish("reportInterval", reportInterval);
+        publishBool("valve/0/get", targetValvePos0);
+        publishBool("valve/1/get", targetValvePos1);
+        publishInt("reportInterval", reportInterval);
     }
 }
 
@@ -372,39 +390,37 @@ void checkValves() {
     // If a valve touched a limit switch, stop that valve.
     if (!digitalRead(PIN_VALVE_CLOSE_0) && motorState[0] == -1) {
         setMotor(0, 0);
-        targetValvePos[0] = false;
+        targetValvePos0 = false;
         shouldPublish = true;
     }
 
     if (!digitalRead(PIN_VALVE_OPEN_0) && motorState[0] == 1) {
         setMotor(0, 0);
-        targetValvePos[0] = true;
+        targetValvePos0 = true;
         shouldPublish = true;
     }
 
     if (!digitalRead(PIN_VALVE_CLOSE_1) && motorState[1] == -1) {
         setMotor(1, 0);
-        targetValvePos[1] = false;
+        targetValvePos1 = false;
         shouldPublish = true;
     }
 
     if (!digitalRead(PIN_VALVE_OPEN_1) && motorState[1] == 1) {
         setMotor(1, 0);
-        targetValvePos[1] = true;
+        targetValvePos1 = true;
         shouldPublish = true;
     }
 
     if (shouldPublish) {
-        publishArrayBool("targetValvePos", targetValvePos, 2);
+        publishBool("valve/0/get", targetValvePos0);
+        publishBool("valve/1/get", targetValvePos1);
     }
 }
 
 // Turn or stop valve motor, without any checking. direction: 0 = Stop, -1 = Close, 1 = Open
 void setMotor(int which, int direction) {
-    Serial.print("Valve: ");
-    Serial.print(which);
-    Serial.print("  Dir: ");
-    Serial.println(direction);
+    publishInt(((which == 0) ? "motorState/0" : "motorState/1"), direction);
 
     int outPin0;
     int outPin1;
@@ -464,37 +480,39 @@ void updateSoilHumidity(){
 //          }
 //        #endif
 //    }
-    soilHumidity[0] =       SOILCAL_00(Adc0.readADC_SingleEnded(0));
-    soilHumidity[1] =       SOILCAL_01(Adc0.readADC_SingleEnded(1));
-    soilHumidity[2] =       SOILCAL_02(Adc0.readADC_SingleEnded(2));
-    soilHumidity[3] =       SOILCAL_03(Adc0.readADC_SingleEnded(3));
+    // soilHumidity[0] =       SOILCAL_00(Adc0.readADC_SingleEnded(0));
+    // soilHumidity[1] =       SOILCAL_01(Adc0.readADC_SingleEnded(1));
+    // soilHumidity[2] =       SOILCAL_02(Adc0.readADC_SingleEnded(2));
+    // soilHumidity[3] =       SOILCAL_03(Adc0.readADC_SingleEnded(3));
     
-    #ifdef ENABLE_MOISTURE_1
-      soilHumidity[4] =     SOILCAL_10(Adc1.readADC_SingleEnded(0));
-      soilHumidity[5] =     SOILCAL_11(Adc1.readADC_SingleEnded(1));
-      soilHumidity[6] =     SOILCAL_12(Adc1.readADC_SingleEnded(2));
-      soilHumidity[7] =     SOILCAL_13(Adc1.readADC_SingleEnded(3));
-    #endif
-    #ifdef ENABLE_MOISTURE_2
-      soilHumidity[8]  =    SOILCAL_20(Adc2.readADC_SingleEnded(0));
-      soilHumidity[9]  =    SOILCAL_21(Adc2.readADC_SingleEnded(1));
-      soilHumidity[10] =    SOILCAL_22(Adc2.readADC_SingleEnded(2));
-      soilHumidity[11] =    SOILCAL_23(Adc2.readADC_SingleEnded(3));
-    #endif
-    #ifdef ENABLE_MOISTURE_3
-      soilHumidity[12] =    SOILCAL_30(Adc3.readADC_SingleEnded(0));
-      soilHumidity[13] =    SOILCAL_31(Adc3.readADC_SingleEnded(1));
-      soilHumidity[14] =    SOILCAL_32(Adc3.readADC_SingleEnded(2));
-      soilHumidity[15] =    SOILCAL_33(Adc3.readADC_SingleEnded(3));
-    #endif
+    // #ifdef ENABLE_MOISTURE_1
+    //   soilHumidity[4] =     SOILCAL_10(Adc1.readADC_SingleEnded(0));
+    //   soilHumidity[5] =     SOILCAL_11(Adc1.readADC_SingleEnded(1));
+    //   soilHumidity[6] =     SOILCAL_12(Adc1.readADC_SingleEnded(2));
+    //   soilHumidity[7] =     SOILCAL_13(Adc1.readADC_SingleEnded(3));
+    // #endif
+    // #ifdef ENABLE_MOISTURE_2
+    //   soilHumidity[8]  =    SOILCAL_20(Adc2.readADC_SingleEnded(0));
+    //   soilHumidity[9]  =    SOILCAL_21(Adc2.readADC_SingleEnded(1));
+    //   soilHumidity[10] =    SOILCAL_22(Adc2.readADC_SingleEnded(2));
+    //   soilHumidity[11] =    SOILCAL_23(Adc2.readADC_SingleEnded(3));
+    // #endif
+    // #ifdef ENABLE_MOISTURE_3
+    //   soilHumidity[12] =    SOILCAL_30(Adc3.readADC_SingleEnded(0));
+    //   soilHumidity[13] =    SOILCAL_31(Adc3.readADC_SingleEnded(1));
+    //   soilHumidity[14] =    SOILCAL_32(Adc3.readADC_SingleEnded(2));
+    //   soilHumidity[15] =    SOILCAL_33(Adc3.readADC_SingleEnded(3));
+    // #endif
    
+    // for (int i = 0)
 
     // Calculate the average soil humidity
-    uint16_t currentAvg = soilHumidity[0];
-    for (int i = 1; i < C_MOIST_SENS_AMOUNT; i++) {
-        currentAvg = (currentAvg + soilHumidity[i]) / 2;
+    float sum = 0.00;
+    for (int i = 0; i < C_MOIST_SENS_AMOUNT; i++) {
+        soilHumidity[i] = getSoilSensorPercentage(i);
+        sum += soilHumidity[i];
     }
-    avgSoilHumidity = currentAvg;
+    avgSoilHumidity = (sum / (float)C_MOIST_SENS_AMOUNT) ;
 }
 
 // Calculate the current flow rate of the flow sensors
@@ -522,6 +540,25 @@ void updateTemperatureHumidity() {
     enclosureTemperature = Dht1.readTemperature();
     airTemperature = Dht0.readTemperature();
     airHumidity = Dht0.readHumidity();
+}
+
+// A simple float map, which
+float mapfloat(float x, float in_min, float in_max, float out_min, float out_max) {
+    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+// Gets a callibrated value of a specific sensor
+// Negative values tend to underflow to a very high number, this somewhat fixes it
+// Only 1 adc supported for now
+float getSoilSensorPercentage(int which) {
+    float value = mapfloat((float)Adc0.readADC_SingleEnded(which), soilCallibration[which][0], soilCallibration[which][1], 0, 100);
+
+    // Serial.print("ss #");
+    // Serial.print(which);
+    // Serial.print(" = ");
+    // Serial.println(value);
+
+    return ((value > 500.00 || value < 0) ? -1.00 : value);
 }
 
 // Attach or detach interrupts for the water flow sensors
@@ -566,7 +603,16 @@ void printDebug(char* debugMsg) {
 }
 
 // Publish a value now
-void publish(String key, int value) {
+void publishInt(String key, int value) {
+    StaticJsonDocument<C_SIZE_MSG> jbuf;
+    jbuf[key] = value;
+    // Send data
+    serializeJson(jbuf, Serial);
+    // Make sure to print a new line
+    Serial.println();
+}
+
+void publishBool(String key, bool value) {
     StaticJsonDocument<C_SIZE_MSG> jbuf;
     jbuf[key] = value;
     // Send data

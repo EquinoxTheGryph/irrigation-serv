@@ -6,3 +6,4 @@ __pycache__/
 server-config.json
 .hex
 .vscode
+irrigation-serv-config.json

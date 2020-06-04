@@ -18,9 +18,10 @@ POLLING_RATE = 3  # How many times per second it should check for serial events
 
 # Topics to subscribe to and relay to the serial output {Syntax = "topic_name" : data_type}
 _subscribed_topics = {
-    "targetValvePos0": bool,
-    "targetValvePos1": bool,
-    "reportInterval": int
+    "valve/0/set": bool,
+    "valve/1/set": bool,
+    "reportInterval": int,
+    "doorTrigger": bool
 }
 
 # Topics to parse from the serial stream to publish to mqtt 
@@ -37,17 +38,16 @@ _published_topics = {
     "enclosureTemperature" : None,
     "doorOpen": None,
     
-    "valve0FullyOpen"   : None,
-    "valve0FullyClosed" : None,
-    "valve1FullyOpen"   : None,
-    "valve1FullyClosed" : None,
+    "valve/0/isFullyOpen"   : None,
+    "valve/0/isFullyClosed" : None,
+    "valve/1/isFullyOpen"   : None,
+    "valve/1/isFullyClosed" : None,
+
+    "valve/0/get": None,
+    "valve/1/get": None,
     
     "soilHumidity/avg" : {
         "from_key": "avgSoilHumidity"
-    },
-    
-    "targetValvePos" : {
-        "as_array": True
     },
     
     "soilHumidity" : {
@@ -156,9 +156,9 @@ async def monitor_serial_input():
                 try:
                     _j = json.loads(_data)
 
-                    msg.d("This -> MQTT    Publishing data...")
+                    # msg.d("This -> MQTT    Publishing data...")
                     publish_data(_j)
-                    msg.d("This -> MQTT    Publishing done!")
+                    msg.d("This -> MQTT    Published data.")
 
                 except ValueError as e:
                     msg.e("monitor_serial_input():  %s" % e)
@@ -199,7 +199,6 @@ def attempt_publish_data(json_obj, key, getter = False, from_key = None, as_arra
             if from_key is None:
                 client.publish("%s/%s%s" % (config.get("mqtt_base_topic"), key, topic_suffix), json_obj[key])
             else:
-                print(str(from_key) + " -> " + key)
                 client.publish("%s/%s%s" % (config.get("mqtt_base_topic"), key, topic_suffix), json_obj[from_key])
         else:
             # Iterate through the supplied array key
@@ -209,7 +208,7 @@ def attempt_publish_data(json_obj, key, getter = False, from_key = None, as_arra
                 else:
                     client.publish("%s/%s/%s%s" % (config.get("mqtt_base_topic"), key, index, topic_suffix), json_obj[from_key][index])
     except KeyError as e:
-        msg.e("attempt_publish_data():  %s" % e)
+        #msg.e("attempt_publish_data():  %s" % e)
         pass
 
 
