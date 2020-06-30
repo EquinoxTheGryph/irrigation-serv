@@ -325,7 +325,7 @@ void recieveStates() {
         // Parsing succeeds! Set variables.
         // Skips valve 0 if door is open (and config is set)
         bool valvePos0 = targetValvePos0;
-        if (doorTrigger && !digitalRead(PIN_DOOR)) {
+        if (!(doorTrigger && digitalRead(PIN_DOOR))) {
             valvePos0 = getJsonKeyValueAsBool(jsonInput, "valve/0/set", targetValvePos0);
         } else {
             printError("Can't change valve 0, door is open!");
@@ -552,12 +552,6 @@ float mapfloat(float x, float in_min, float in_max, float out_min, float out_max
 // Only 1 adc supported for now
 float getSoilSensorPercentage(int which) {
     float value = mapfloat((float)Adc0.readADC_SingleEnded(which), soilCallibration[which][0], soilCallibration[which][1], 0, 100);
-
-    // Serial.print("ss #");
-    // Serial.print(which);
-    // Serial.print(" = ");
-    // Serial.println(value);
-
     return ((value > 500.00 || value < 0) ? -1.00 : value);
 }
 
