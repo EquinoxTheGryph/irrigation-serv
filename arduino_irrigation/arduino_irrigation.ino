@@ -12,9 +12,11 @@
  * JSON format: (<0-x> means an integer range)
  *   Input:
  *      {
- *          "valve/0/set": <0-100>,
- *          "valve/1/set": <0-100>,
- *          "reportInterval": <1000-x>  // Under 1000 will reset the interval to C_REPORT_INTERVAL
+ *          "valve/0/set": bool,
+ *          "valve/1/set": bool,
+ *          "reportInterval": <1000-x>,  // Under 1000 will reset the interval to C_REPORT_INTERVAL
+ *          "doorTrigger": bool,         // Enable/Disable blocking valve 0 to open when door is open
+ *          "forceClose": bool
  *      }
  *   Output:
  *      {
@@ -101,33 +103,9 @@
     // Define helper functions
 #define ARRAYSIZE(x)        (sizeof(x)/sizeof(*x))         // define a macro to calculate array size
 
-    // These functions is used to calibrate the soil sensors individually
+    // This functions is used to calibrate the soil sensors individually
     // Set the minimum value to the value when using the sensor in very humid soil (Soil soaked in water)
     // Set the maximum value to the value when using the sensor in air (Sensor dried off)
-    // Syntax: map(x, Max value, Min value, 0%, 100%)
-// #define SOILCAL_00(x)  (map(x, 15300, 9150, 0.00, 100.00))
-// #define SOILCAL_01(x)  (map(x, 15300, 8475, 0.00, 100.00))
-// #define SOILCAL_02(x)  (map(x, 15240, 8550, 0.00, 100.00))
-// #define SOILCAL_03(x)  (map(x, 14740, 8200, 0.00, 100.00))
-
-// #ifdef ENABLE_MOISTURE_1
-//   #define SOILCAL_10(x)  (map(x, 15000, 9000, 0, 100))
-//   #define SOILCAL_11(x)  (map(x, 15000, 9000, 0, 100))
-//   #define SOILCAL_12(x)  (map(x, 15000, 9000, 0, 100))
-//   #define SOILCAL_13(x)  (map(x, 15000, 9000, 0, 100))
-// #endif
-// #ifdef ENABLE_MOISTURE_2
-//   #define SOILCAL_20(x)  (map(x, 15000, 9000, 0, 100))
-//   #define SOILCAL_21(x)  (map(x, 15000, 9000, 0, 100))
-//   #define SOILCAL_22(x)  (map(x, 15000, 9000, 0, 100))
-//   #define SOILCAL_23(x)  (map(x, 15000, 9000, 0, 100))
-// #endif
-// #ifdef ENABLE_MOISTURE_3
-//   #define SOILCAL_30(x)  (map(x, 15000, 9000, 0, 100))
-//   #define SOILCAL_31(x)  (map(x, 15000, 9000, 0, 100))
-//   #define SOILCAL_32(x)  (map(x, 15000, 9000, 0, 100))
-//   #define SOILCAL_33(x)  (map(x, 15000, 9000, 0, 100))
-// #endif
 uint16_t soilCallibration[4][2] = {
     {15300, 9150},
     {15300, 8475},
@@ -195,10 +173,10 @@ void setup() {
     pinMode(PIN_FLOW_METER_1, INPUT);
     pinMode(PIN_DOOR, INPUT_PULLUP);
 
-    pinMode(PIN_VALVE_OPEN_0, INPUT_PULLUP);
-    pinMode(PIN_VALVE_CLOSE_0, INPUT_PULLUP);
-    pinMode(PIN_VALVE_OPEN_1, INPUT_PULLUP);
-    pinMode(PIN_VALVE_CLOSE_1, INPUT_PULLUP);
+    pinMode(PIN_VALVE_OPEN_0, INPUT);
+    pinMode(PIN_VALVE_CLOSE_0, INPUT);
+    pinMode(PIN_VALVE_OPEN_1, INPUT);
+    pinMode(PIN_VALVE_CLOSE_1, INPUT);
 
     pinMode(PIN_VALVE_MOTOR_A0, OUTPUT);
     pinMode(PIN_VALVE_MOTOR_A1, OUTPUT);
@@ -254,7 +232,7 @@ void loop() {
         updateSensorValues();
         sendStates();
     }
-
+    
     checkValves();
 }
 
@@ -323,15 +301,9 @@ void recieveStates() {
         }
 
         // Parsing succeeds! Set variables.
-        // Skips valve 0 if door is open (and config is set)
-        bool valvePos0 = targetValvePos0;
-        if (!(doorTrigger && digitalRead(PIN_DOOR))) {
-            valvePos0 = getJsonKeyValueAsBool(jsonInput, "valve/0/set", targetValvePos0);
-        } else {
-            printError("Can't change valve 0, door is open!");
-        }
-
+        bool valvePos0 = getJsonKeyValueAsBool(jsonInput, "valve/0/set", targetValvePos0);
         bool valvePos1 = getJsonKeyValueAsBool(jsonInput, "valve/1/set", targetValvePos1);
+        bool force = getJsonKeyValueAsBool(jsonInput, "forceClose", false);
         reportInterval = getJsonKeyValueAsInt(jsonInput, "reportInterval", reportInterval);
         doorTrigger = getJsonKeyValueAsBool(jsonInput, "doorTrigger", doorTrigger);
 
@@ -340,16 +312,27 @@ void recieveStates() {
 
 
         // Move valves if requested
-        if (valvePos0 != targetValvePos0)
-            setValve(0, valvePos0);
-        if (valvePos1 != targetValvePos1)
+        // Skips valve 0 if door is open (and config is set)
+        if (valvePos0 != targetValvePos0) {
+            if (!(doorTrigger && digitalRead(PIN_DOOR))) {
+                setValve(0, valvePos0);
+            } else {
+                printError("Can't change valve 0, door is open!");
+            }
+        }
+        if (valvePos1 != targetValvePos1) {
             setValve(1, valvePos1);
+        }
 
         // Wait until the remaining data has been recieved and then make sure the serial buffer is empty.
         delay(10);
         while (Serial.available() > 0) {
             char t = Serial.read();
         }
+
+        // Force close the valves
+        if (force)
+            forceClose();
 
         // Publish the current values
         publishBool("valve/0/get", targetValvePos0);
@@ -456,56 +439,24 @@ void setMotor(int which, int direction) {
     }
 }
 
+// Keep moving the motors to close the valves, in case it is stuck for some weird reason
+// This will halt any other proccess
+void forceClose() {
+    printDebug("Forcing the valves to close");
+    setValve(0, false);
+    setValve(1, false);
+    delay(5000);
+    checkValves();
+    delay(500);
+    setValve(0, false);
+    setValve(1, false);
+    delay(100);
+    checkValves();
+}
+
 // Read all I2C ADC values (Including the average value), used for soil sensors.
 // Sets: soilHumidity, avgSoilHumidity
 void updateSoilHumidity(){
-    // Get individual values and apply calibrations
-//    for(int i = 0; i < C_MOIST_SENS_AMOUNT; i++) {
-//        if(i < 4) {
-//          soilHumidity[i]    = Adc0.readADC_SingleEnded(i);//SOILCALIBRATION(Adc0.readADC_SingleEnded(i));
-//        }
-//        #ifdef ENABLE_MOISTURE_1
-//          if(i >= 4 and i < 8) {
-//            soilHumidity[i]  = SOILCALIBRATION(Adc1.readADC_SingleEnded(i - 4));
-//          }
-//        #endif
-//        #ifdef ENABLE_MOISTURE_2
-//          if(i >= 8 and i < 12) {
-//            soilHumidity[i]  = SOILCALIBRATION(Adc2.readADC_SingleEnded(i - 8));
-//          }
-//        #endif
-//        #ifdef ENABLE_MOISTURE_3
-//          if(i >= 12 and i < 16) {
-//            soilHumidity[i] = SOILCALIBRATION(Adc3.readADC_SingleEnded(i - 12));
-//          }
-//        #endif
-//    }
-    // soilHumidity[0] =       SOILCAL_00(Adc0.readADC_SingleEnded(0));
-    // soilHumidity[1] =       SOILCAL_01(Adc0.readADC_SingleEnded(1));
-    // soilHumidity[2] =       SOILCAL_02(Adc0.readADC_SingleEnded(2));
-    // soilHumidity[3] =       SOILCAL_03(Adc0.readADC_SingleEnded(3));
-    
-    // #ifdef ENABLE_MOISTURE_1
-    //   soilHumidity[4] =     SOILCAL_10(Adc1.readADC_SingleEnded(0));
-    //   soilHumidity[5] =     SOILCAL_11(Adc1.readADC_SingleEnded(1));
-    //   soilHumidity[6] =     SOILCAL_12(Adc1.readADC_SingleEnded(2));
-    //   soilHumidity[7] =     SOILCAL_13(Adc1.readADC_SingleEnded(3));
-    // #endif
-    // #ifdef ENABLE_MOISTURE_2
-    //   soilHumidity[8]  =    SOILCAL_20(Adc2.readADC_SingleEnded(0));
-    //   soilHumidity[9]  =    SOILCAL_21(Adc2.readADC_SingleEnded(1));
-    //   soilHumidity[10] =    SOILCAL_22(Adc2.readADC_SingleEnded(2));
-    //   soilHumidity[11] =    SOILCAL_23(Adc2.readADC_SingleEnded(3));
-    // #endif
-    // #ifdef ENABLE_MOISTURE_3
-    //   soilHumidity[12] =    SOILCAL_30(Adc3.readADC_SingleEnded(0));
-    //   soilHumidity[13] =    SOILCAL_31(Adc3.readADC_SingleEnded(1));
-    //   soilHumidity[14] =    SOILCAL_32(Adc3.readADC_SingleEnded(2));
-    //   soilHumidity[15] =    SOILCAL_33(Adc3.readADC_SingleEnded(3));
-    // #endif
-   
-    // for (int i = 0)
-
     // Calculate the average soil humidity
     float sum = 0.00;
     for (int i = 0; i < C_MOIST_SENS_AMOUNT; i++) {
